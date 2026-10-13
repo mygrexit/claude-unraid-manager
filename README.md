@@ -2,8 +2,9 @@
 
 [Claude Code](https://claude.com/claude-code) set up as an **Unraid
 administrator**, not as a coding tool: an always-on container in which Claude
-manages your containers, storage, VMs, plugins and configuration, with you
-confirming each step.
+manages your containers, storage, VMs, plugins and configuration. It is meant
+to ask you before it acts; how much of that holds depends on you keeping the
+permission prompts on and reading them.
 
 > ⚠️ **For experienced Unraid users only.** This gives an AI model
 > root-equivalent access to your server through the Docker socket. The
@@ -15,6 +16,12 @@ confirming each step.
 
 Unlike generic Claude Code containers, this one understands Unraid: it auto-discovers your storage pools (ZFS, btrfs, XFS, or parity array), running containers, VMs, plugins, shares, and network — and generates a tailored `CLAUDE.md` so Claude knows exactly what it can and cannot do on *your* server.
 
+**Status: beta.** Tested on two Unraid 7.3.3 servers, both ZFS pool-only
+(array started with no data disks). Not yet tested: arrays with data disks
+and parity, btrfs and XFS pools, systems without ZFS. The scanner handles
+those paths, but nobody has watched it do so. Reports are welcome in the
+[issues](https://github.com/mygrexit/claude-unraid-manager/issues).
+
 ## What This Is For
 
 An **interactive admin assistant** that acts on your server, with you in the
@@ -23,7 +30,7 @@ taking the space", "set up a container for X so it shows in the Docker tab",
 "why did the parity check slow down" — from the Unraid terminal or from your
 phone via Remote Control. Claude has the context (your pools, shares,
 containers, plugins) and the tools (`docker`, `host zpool …`, `host virsh …`)
-to investigate and, after you confirm, to fix things.
+to investigate and, ideally after you confirm, to fix things.
 
 **What it is not:**
 
@@ -55,34 +62,28 @@ to investigate and, after you confirm, to fix things.
 
 ## Quick Start
 
-Not in Community Applications yet, and no image has been published yet, so
-build it on the server and install the template by hand:
+Not in Community Applications yet. The beta image is published at
+`ghcr.io/mygrexit/claude-unraid-manager:beta`, which is what the template
+points to. Install the template by hand:
 
 ```bash
-# On the Unraid terminal. Uses the appdata location configured under
-# Settings → Docker, so no new share is created on systems that keep it elsewhere.
-APPDATA=$(sed -n 's/^DOCKER_APP_CONFIG_PATH="\(.*\)"$/\1/p' /boot/config/docker.cfg)
-APPDATA=${APPDATA%/}; APPDATA=${APPDATA:-/mnt/user/appdata}
-cd "$APPDATA" && git clone https://github.com/mygrexit/claude-unraid-manager.git claude-unraid-manager-src
-docker build -t claude-unraid-manager:local claude-unraid-manager-src
-sed 's#<Repository>.*</Repository>#<Repository>claude-unraid-manager:local</Repository>#' \
-  claude-unraid-manager-src/unraid-template.xml \
-  > /boot/config/plugins/dockerMan/templates-user/my-claude-unraid-manager.xml
+# On the Unraid terminal
+curl -fsSL https://raw.githubusercontent.com/mygrexit/claude-unraid-manager/main/unraid-template.xml \
+  -o /boot/config/plugins/dockerMan/templates-user/my-claude-unraid-manager.xml
 ```
-
-The template's two appdata mounts default to `/mnt/user/appdata/…` like every
-Unraid template. If your appdata lives elsewhere (for example
-`/mnt/cache/appdata`), change them when adding the container: touching a path
-under `/mnt/user` that does not exist makes Unraid create a new share there.
 
 Then in the Unraid web UI open **Docker → Add Container**, pick
 `claude-unraid-manager` from the template dropdown, review the mounts (boot
 drive read-only, no shares by default), apply, and attach to the session (see
 below) to log in.
 
-Once a release is tagged the image is published at
-`ghcr.io/mygrexit/claude-unraid-manager:latest`, which is what the template
-points to by default; the build and `sed` steps above then go away.
+The template's two appdata mounts default to `/mnt/user/appdata/…` like every
+Unraid template. If your appdata lives elsewhere (for example
+`/mnt/cache/appdata`), change them when adding the container: touching a path
+under `/mnt/user` that does not exist makes Unraid create a new share there.
+
+To build the image yourself instead, see
+[Building and Testing Locally](#building-and-testing-locally).
 
 ## How It Works
 
@@ -134,7 +135,9 @@ Three independent layers, in order of how much you should rely on them:
    `host zpool status`, …) run without a prompt so the prompts you do see are
    the ones that matter. Accept-edits mode auto-approves file edits only; shell
    commands still prompt. `--dangerously-skip-permissions` is disabled in the
-   shipped settings (`disableBypassPermissionsMode`).
+   shipped settings (`disableBypassPermissionsMode`). Auto mode, where a
+   classifier approves actions instead of you, is left available; whether to
+   use it on a root-equivalent container is your call.
 
 2. **Guard hook** (hard block for a short list) — `claude-guard` is a
    `PreToolUse` hook that inspects the *entire* command string before it runs
@@ -245,7 +248,16 @@ need it — so MCP servers that are started through `npx` do not work inside
 this container.
 
 ```bash
-docker build -t claude-unraid-manager .
+# On the Unraid terminal. Uses the appdata location configured under
+# Settings → Docker, so no new share is created on systems that keep it elsewhere.
+APPDATA=$(sed -n 's/^DOCKER_APP_CONFIG_PATH="\(.*\)"$/\1/p' /boot/config/docker.cfg)
+APPDATA=${APPDATA%/}; APPDATA=${APPDATA:-/mnt/user/appdata}
+cd "$APPDATA" && git clone https://github.com/mygrexit/claude-unraid-manager.git claude-unraid-manager-src
+docker build -t claude-unraid-manager:local claude-unraid-manager-src
+# Point the template at the local image instead of GHCR:
+sed 's#<Repository>.*</Repository>#<Repository>claude-unraid-manager:local</Repository>#' \
+  claude-unraid-manager-src/unraid-template.xml \
+  > /boot/config/plugins/dockerMan/templates-user/my-claude-unraid-manager.xml
 
 # Scanner and guard tests run without Docker or Unraid:
 bash tests/run.sh
