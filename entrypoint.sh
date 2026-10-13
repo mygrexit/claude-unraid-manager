@@ -79,6 +79,16 @@ if [ "$REMOTE_CONTROL" = true ]; then
 else
   echo "  Remote: Remote Control is disabled"
 fi
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f /root/.claude/.credentials.json ]; then
+  echo "  Login:  not logged in yet — attach and complete the login once"
+fi
 
-# Keep the container alive without burning CPU.
-exec tail -f /dev/null
+# Keep the container alive without burning CPU. On stop, end the tmux server
+# first so Claude shuts down cleanly instead of being killed with the container.
+shutdown() {
+  tmux kill-server 2>/dev/null || true
+  exit 0
+}
+trap shutdown TERM INT
+tail -f /dev/null &
+wait $!

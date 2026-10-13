@@ -56,13 +56,14 @@ write_scan() {
 ::ZFS_POOLS::tank 10.9T 4.2T 6.7T ONLINE|nvme 1.8T 900G 900G ONLINE|
 ::ZFS_DATASETS::tank/media 3T 6.7T /mnt/tank/media|nvme/appdata 50G 900G /mnt/nvme/appdata|
 ::ZFS_ENCRYPTED::nvme/secrets,
+::BTRFS::Label: none  uuid: 79cc1003-f05f-4e01-babc-1e6ebe37e682|	Total devices 1 FS bytes used 1.17MiB|	devid    1 size 1.00GiB used 126.38MiB path /dev/loop3||Label: 'cache2'  uuid: 1111-2222|	Total devices 2 FS bytes used 100.00GiB|	devid    1 size 1.00TiB used 50.00GiB path /dev/sdc1|	devid    2 size 1.00TiB used 50.00GiB path /dev/sdd1||
 ::ARRAY_STATE::mdNumDisks=5|mdState=STARTED|
 ::SHARES::appdata,media,
 ::POOLS::cache,nvme,
-::VMS::win11,homeassistant,
+::VMS::win11:shut off|Home Assistant:running|
 ::PLUGINS::dynamix.system.temp,unassigned.devices,
 ::USERSCRIPTS::zfs-snapshot:ZFS Snapshot:Daily snapshots of tank/media|cleanup-tmp:cleanup-tmp:|lock dataset:Lock Dataset:|
-::NETWORK::eth0 192.168.1.10/24,br0 192.168.1.10/24,veth1a2b3c fe80::1/64,vnet0 fe80::2/64,shim-br0 192.168.1.10/24,
+::NETWORK::eth0 UP 192.168.1.10/24,bond0 UP ,br0 UP 192.168.1.10/24,tunl0@NONE DOWN ,docker0 DOWN 172.17.0.1/16,br-79c60d7ee5a9 UP 172.18.0.1/16,virbr0 DOWN 192.168.122.1/24,veth1a2b3c UP fe80::1/64,vnet0 UNKNOWN fe80::2/64,shim-br0@br0 UP 192.168.1.10/24,tailscale1 UNKNOWN 100.110.244.19/32,
 EOF
 }
 
@@ -106,7 +107,12 @@ expect_contains "$TMP/CLAUDE.md" "Encrypted datasets: nvme/secrets"
 expect_contains "$TMP/CLAUDE.md" "**Unraid array:** STARTED (mdNumDisks=5)"
 expect_contains "$TMP/CLAUDE.md" "cache, nvme"
 expect_contains "$TMP/CLAUDE.md" "**Shares:** appdata, media"
-expect_contains "$TMP/CLAUDE.md" "- win11"
+expect_contains "$TMP/CLAUDE.md" "- win11 (shut off)"
+expect_contains "$TMP/CLAUDE.md" "- Home Assistant (running)"
+expect_contains "$TMP/CLAUDE.md" "Label: 'cache2'  uuid: 1111-2222"
+expect_contains "$TMP/CLAUDE.md" "Total devices 2 FS bytes used 100.00GiB"
+expect_not_contains "$TMP/CLAUDE.md" "79cc1003-f05f-4e01-babc-1e6ebe37e682"
+expect_not_contains "$TMP/CLAUDE.md" "/dev/sdc1"
 expect_contains "$TMP/CLAUDE.md" "- unassigned.devices"
 expect_contains "$TMP/CLAUDE.md" "- ZFS Snapshot — Daily snapshots of tank/media [custom 0 3 * * *]"
 expect_contains "$TMP/CLAUDE.md" "- cleanup-tmp [disabled]"
@@ -118,10 +124,13 @@ expect_not_contains "$TMP/CLAUDE.md" "list truncated"
 expect_contains "$TMP/CLAUDE.md" "Running in **host** network mode"
 expect_contains "$TMP/CLAUDE.md" "## Custom"
 expect_not_contains "$TMP/CLAUDE.md" "0 data disks"
-expect_contains "$TMP/CLAUDE.md" "- br0 192.168.1.10/24"
-expect_not_contains "$TMP/CLAUDE.md" "veth1a2b3c"
-expect_not_contains "$TMP/CLAUDE.md" "vnet0"
-expect_not_contains "$TMP/CLAUDE.md" "shim-br0"
+expect_contains "$TMP/CLAUDE.md" "- eth0 UP 192.168.1.10/24"
+expect_contains "$TMP/CLAUDE.md" "- bond0 UP"
+expect_contains "$TMP/CLAUDE.md" "- br0 UP 192.168.1.10/24"
+expect_contains "$TMP/CLAUDE.md" "- tailscale1 UNKNOWN 100.110.244.19/32"
+for junk in veth1a2b3c vnet0 shim-br0 tunl0 docker0 br-79c60d7ee5a9 virbr0; do
+  expect_not_contains "$TMP/CLAUDE.md" "$junk"
+done
 expect_not_contains "$TMP/CLAUDE.md" "| \`/media\` |"
 expect_not_contains "$TMP/CLAUDE.md" "Boot Configuration (not mounted)"
 

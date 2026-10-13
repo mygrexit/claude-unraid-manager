@@ -50,18 +50,21 @@ Not in Community Applications yet, and no image has been published yet, so
 build it on the server and install the template by hand:
 
 ```bash
-# On the Unraid terminal
-cd /mnt/user/appdata && git clone https://github.com/mygrexit/claude-unraid-manager.git claude-unraid-manager-src
+# On the Unraid terminal. Uses the appdata location configured under
+# Settings → Docker, so no new share is created on systems that keep it elsewhere.
+APPDATA=$(sed -n 's/^DOCKER_APP_CONFIG_PATH="\(.*\)"$/\1/p' /boot/config/docker.cfg)
+APPDATA=${APPDATA%/}; APPDATA=${APPDATA:-/mnt/user/appdata}
+cd "$APPDATA" && git clone https://github.com/mygrexit/claude-unraid-manager.git claude-unraid-manager-src
 docker build -t claude-unraid-manager:local claude-unraid-manager-src
 sed 's#<Repository>.*</Repository>#<Repository>claude-unraid-manager:local</Repository>#' \
   claude-unraid-manager-src/unraid-template.xml \
   > /boot/config/plugins/dockerMan/templates-user/my-claude-unraid-manager.xml
 ```
 
-If your appdata share does not live at `/mnt/user/appdata` (for example
-`/mnt/cache/appdata` or a pool-specific path), use that path in the commands
-above and in the two appdata mounts of the template. Touching a path under
-`/mnt/user` that does not exist makes Unraid create a new share there.
+The template's two appdata mounts default to `/mnt/user/appdata/…` like every
+Unraid template. If your appdata lives elsewhere (for example
+`/mnt/cache/appdata`), change them when adding the container: touching a path
+under `/mnt/user` that does not exist makes Unraid create a new share there.
 
 Then in the Unraid web UI open **Docker → Add Container**, pick
 `claude-unraid-manager` from the template dropdown, review the mounts (boot

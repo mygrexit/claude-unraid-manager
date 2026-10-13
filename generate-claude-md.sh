@@ -51,24 +51,27 @@ echo "::NETNS::$(readlink /proc/self/ns/net 2>/dev/null)"
 if command -v zpool >/dev/null 2>&1; then
   echo "::ZFS_POOLS::$(zpool list -Ho name,size,alloc,free,health 2>/dev/null | tr "\n" "|")"
   echo "::ZFS_DATASETS::$(zfs list -Ho name,used,avail,mountpoint 2>/dev/null | head -30 | tr "\n" "|")"
-  echo "::ZFS_ENCRYPTED::$(zfs get -Ho name,value encryption 2>/dev/null | grep -v "off$" | awk "{print \$1}" | tr "\n" ",")"
+  # -t: snapshots inherit the property and would be listed too.
+  echo "::ZFS_ENCRYPTED::$(zfs get -Ho name,value encryption -t filesystem,volume 2>/dev/null | grep -v "off$" | awk "{print \$1}" | tr "\n" ",")"
 fi
 if command -v btrfs >/dev/null 2>&1; then
-  echo "::BTRFS::$(btrfs filesystem show 2>/dev/null | grep -E "Label|Total" | tr "\n" "|")"
+  # Full output incl. device lines; loop-backed images are filtered out later.
+  echo "::BTRFS::$(btrfs filesystem show 2>/dev/null | tr "\n" "|")"
 fi
-echo "::ARRAY_STATE::$(mdcmd status 2>/dev/null | grep -E "^mdState=|^mdNumDisks=|^mdNumParity=" | tr "\n" "|")"
+echo "::ARRAY_STATE::$(mdcmd status 2>/dev/null | grep -E "^mdState=|^mdNumDisks=" | tr "\n" "|")"
 echo "::SHARES::$(ls /mnt/user/ 2>/dev/null | tr "\n" ",")"
 echo "::POOLS::$(ls /boot/config/pools/*.cfg 2>/dev/null | xargs -r -I{} basename {} .cfg | tr "\n" ",")"
 
 if command -v virsh >/dev/null 2>&1; then
-  echo "::VMS::$(virsh list --all --name 2>/dev/null | grep -v "^$" | tr "\n" ",")"
+  # name:state per VM (names may contain spaces, states never contain ":").
+  echo "::VMS::$(virsh list --all --name 2>/dev/null | grep -v "^$" | while IFS= read -r vm; do echo "$vm:$(virsh domstate "$vm" 2>/dev/null)"; done | tr "\n" "|")"
 fi
 
 echo "::PLUGINS::$(ls /boot/config/plugins/*.plg 2>/dev/null | xargs -r -I{} basename {} .plg | tr "\n" ",")"
 # User Scripts plugin: one folder per script, optional name and description files.
 # Emits folder:display-name:description per script.
 echo "::USERSCRIPTS::$(for d in /boot/config/plugins/user.scripts/scripts/*/; do [ -d "$d" ] || continue; f=$(basename "$d"); n=$(head -c 80 "$d/name" 2>/dev/null | tr -d "\n|:"); printf "%s:%s:%s\n" "$f" "${n:-$f}" "$(head -c 120 "$d/description" 2>/dev/null | tr "\n|" "  ")"; done | tr "\n" "|")"
-echo "::NETWORK::$(ip -br addr show 2>/dev/null | grep -v "^lo " | awk "{print \$1,\$3}" | tr "\n" ",")"
+echo "::NETWORK::$(ip -br addr show 2>/dev/null | grep -v "^lo " | awk "{print \$1,\$2,\$3}" | tr "\n" ",")"
 EOF
 
 SCAN=""
@@ -117,7 +120,15 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
       ZFS_POOLS=$(lines ZFS_POOLS)
       ZFS_DATASETS=$(lines ZFS_DATASETS)
       ZFS_ENCRYPTED=$(csv ZFS_ENCRYPTED)
-      BTRFS=$(lines BTRFS)
+      # Keep only filesystems with a real block device. Unraid's docker.img and
+      # libvirt.img are btrfs images on /dev/loop*, not storage.
+      BTRFS=$(get BTRFS | tr '|' '\n' | awk '
+        BEGIN { RS = ""; FS = "\n" }
+        {
+          keep = 0
+          for (i = 1; i <= NF; i++) if ($i ~ /path \/dev\// && $i !~ /path \/dev\/loop/) keep = 1
+          if (keep) for (i = 1; i <= NF; i++) if ($i ~ /Label|Total devices/) print $i
+        }')
       ARRAY_STATE=$(get ARRAY_STATE)
       POOLS=$(csv POOLS)
 
@@ -202,11 +213,14 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
 
     if [ -n "$SCAN" ]; then
       # ── VMs ────────────────────────────────────────────────────────────────
-      VMS=$(get VMS)
+      VMS=$(lines VMS)
       if [ -n "$VMS" ]; then
         echo "### Virtual Machines"
         echo ""
-        echo "$VMS" | tr ',' '\n' | sed '/^$/d' | sed 's/^/- /'
+        while IFS= read -r entry; do
+          vm_name=${entry%:*}; vm_state=${entry##*:}
+          echo "- ${vm_name}${vm_state:+ (${vm_state})}"
+        done <<< "$VMS"
         echo ""
         echo "Commands: \`host virsh list --all\`, \`host virsh dominfo <vm>\`"
         echo ""
@@ -252,13 +266,17 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
         echo ""
       fi
 
-      # Skip per-container (veth), per-VM (vnet) and macvlan shim interfaces;
-      # they change constantly and say nothing about the host's network.
-      NETWORK=$(get NETWORK | tr ',' '\n' | sed '/^$/d' | grep -vE '^(veth|vnet|shim-)' || true)
+      # Only the host's own interfaces: drop per-container (veth), per-VM
+      # (vnet), macvlan shim, Docker (docker0, br-<id>) and libvirt (virbr)
+      # bridges and the tunl0 kernel stub. "name state address".
+      NETWORK=$(get NETWORK | tr ',' '\n' | sed '/^$/d; s/^\([^@ ]*\)@[^ ]*/\1/; s/ *$//' \
+        | grep -vE '^(veth|vnet|shim-|tunl[0-9]|docker0 |br-[0-9a-f]{12} |virbr)' || true)
       if [ -n "$NETWORK" ]; then
         echo "### Host Network Interfaces"
         echo ""
         echo "$NETWORK" | awk '{print "- " $0}'
+        echo ""
+        echo "Docker and libvirt networks are not listed; use \`docker network ls\` and \`host virsh net-list\`."
         echo ""
       fi
     fi
