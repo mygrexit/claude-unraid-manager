@@ -64,6 +64,7 @@ jobs:
 
       - name: Smoke test the image
         run: |
+          docker images claude-unraid-manager:smoke --format 'image size: {{.Size}}'
           docker run --rm claude-unraid-manager:smoke claude --version
           docker run --rm claude-unraid-manager:smoke bash -c 'host; test $? -eq 64'
           docker run --rm claude-unraid-manager:smoke bash -c 'echo "{\"tool_input\":{\"command\":\"wipefs --help\"}}" | claude-guard; test $? -eq 2'
