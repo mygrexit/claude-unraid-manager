@@ -4,6 +4,11 @@ An always-on [Claude Code](https://claude.com/claude-code) container purpose-bui
 
 Unlike generic Claude Code containers, this one understands Unraid: it auto-discovers your storage pools (ZFS, btrfs, XFS, or parity array), running containers, VMs, plugins, shares, and network — and generates a tailored `CLAUDE.md` so Claude knows exactly what it can and cannot do on *your* server.
 
+> ⚠️ **This gives an AI model root-equivalent access to your server** through the
+> Docker socket. The defaults are conservative and there are guard rails, but
+> none of them is a security boundary. Read [Security Model](#security-model)
+> and the [Disclaimer](#disclaimer) before installing, and keep backups.
+
 ## Features
 
 - **Auto-discovery** — on every start, scans your Unraid server and writes a `CLAUDE.md` with your storage topology, containers, VMs, plugins, and network config
@@ -27,6 +32,11 @@ sed 's#<Repository>.*</Repository>#<Repository>claude-unraid-manager:local</Repo
   claude-unraid-manager-src/unraid-template.xml \
   > /boot/config/plugins/dockerMan/templates-user/my-claude-unraid-manager.xml
 ```
+
+If your appdata share does not live at `/mnt/user/appdata` (for example
+`/mnt/cache/appdata` or a pool-specific path), use that path in the commands
+above and in the two appdata mounts of the template. Touching a path under
+`/mnt/user` that does not exist makes Unraid create a new share there.
 
 Then in the Unraid web UI open **Docker → Add Container**, pick
 `claude-unraid-manager` from the template dropdown, review the mounts (boot
@@ -169,7 +179,7 @@ many small writes. The default path is on `/mnt/user/appdata` and works, but a
 cache-only (exclusive) appdata share avoids the FUSE overhead of user shares
 and is the usual recommendation on Unraid.
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 **This tool gives an AI model access to your Unraid server.** While defaults are
 conservative (boot drive read-only, no shares mounted, no privileged mode), the
