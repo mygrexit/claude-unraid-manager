@@ -14,12 +14,15 @@ permission prompts on and reading them.
 > line, this is not for you. Read [Security Model](#security-model) and the
 > [Disclaimer](#disclaimer) before installing, and keep backups.
 
-Unlike generic Claude Code containers, this one understands Unraid: it auto-discovers your storage pools (ZFS, btrfs, XFS, or parity array), running containers, VMs, plugins, shares, and network — and generates a tailored `CLAUDE.md` so Claude knows exactly what it can and cannot do on *your* server.
+Unlike generic Claude Code containers, this one is set up for Unraid: on every start it scans your storage pools (ZFS, btrfs, XFS, or parity array), containers, VMs, plugins, shares, and network and writes a `CLAUDE.md` so Claude starts with a picture of *your* server and the rules for working on it.
 
-**Status: beta.** Tested on two Unraid 7.3.3 servers, both ZFS pool-only
-(array started with no data disks). Not yet tested: arrays with data disks
-and parity, btrfs and XFS pools, systems without ZFS. The scanner handles
-those paths, but nobody has watched it do so. Reports are welcome in the
+**Status: beta.** Everything here was tested on the author's two Unraid
+7.3.3 servers, both ZFS pool-only (array started with no data disks), not on
+a range of different setups. Not yet seen in action: arrays with data disks
+and parity, btrfs and XFS pools, systems without ZFS. The scanner has code
+paths for those, nobody has watched them run. And it is an AI agent: the
+rules in `CLAUDE.md` shape what Claude does, they do not guarantee it. Expect
+rough edges and report them in the
 [issues](https://github.com/mygrexit/claude-unraid-manager/issues).
 
 ## What This Is For
@@ -52,13 +55,13 @@ to investigate and, ideally after you confirm, to fix things.
 
 ## Features
 
-- **Auto-discovery** — on every start, scans your Unraid server and writes a `CLAUDE.md` with your storage topology, containers, VMs, plugins, and network config
+- **Auto-discovery** — on every start, scans your Unraid server and writes a `CLAUDE.md` with your storage topology, containers, VMs, plugins, User Scripts and network config
 - **Safe defaults** — boot drive read-only, no shares mounted, bridge networking. The user opts in to more access
-- **Guard hook** — a small set of catastrophic commands (`mkfs`, `wipefs`, writing to a disk, `zpool destroy`, `rm -rf` on a mount root) is blocked whichever wrapper is used (`host`, `sh -c`, absolute paths)
+- **Guard hook** — a short list of catastrophic commands (`mkfs`, `wipefs`, writing to a disk, `zpool destroy`, `rm -rf` on a mount root) is blocked by a text match on the whole command, whichever wrapper is used (`host`, `sh -c`, absolute paths). A safety net, not a wall; see [Defense in Depth](#defense-in-depth)
 - **Remote Control** — reach your Claude session from phone or tablet via the Claude app
-- **Persistent sessions** — tmux keeps the session alive across disconnects; Claude restarts automatically if it exits; `--continue` resumes the last conversation
-- **GUI-compatible** — Claude knows to create proper dockerMan templates, respect Unraid's persistence model, and keep changes manageable through the web UI
-- **Multi-filesystem** — works with ZFS pools, btrfs pools, XFS, and the classic Unraid parity array
+- **Persistent sessions** — tmux keeps the session alive across disconnects; Claude is restarted if it exits; `--continue` resumes the last conversation
+- **GUI-aware** — Claude is instructed to create dockerMan templates for new containers, respect Unraid's persistence model, and keep changes manageable through the web UI. Instructions, not guarantees
+- **Multi-filesystem** — detects ZFS pools, btrfs pools, XFS, and the classic Unraid parity array; only ZFS pool-only setups have been verified so far
 
 ## Quick Start
 
@@ -97,7 +100,7 @@ On every start, a discovery script scans the host and generates a `CLAUDE.md` in
 - Which paths are mounted and whether they're read-only or read-write
 - Whether the container runs in host or bridge networking, and what that means
 
-Claude reads this file and adapts its behavior accordingly. The scan is a snapshot from container start; Claude is told to use live commands for the current state.
+Claude reads this file at the start of a session and should work from it. The scan is a snapshot from container start; Claude is told to use live commands for the current state.
 
 ## Security Model
 
@@ -146,9 +149,10 @@ Three independent layers, in order of how much you should rely on them:
    and `rm` on `/`, `/mnt/*`, `/mnt/*/appdata`, `/boot`, `/host/boot` or
    `/appdata`. Because it sees the whole string, wrapping the command in
    `host …`, `sh -c '…'` or `docker run … nsenter …`, using absolute paths,
-   trailing slashes or `..` does not get around it. Claude Code's own `deny`
-   rules are also present, but they only match the outermost command, so on
-   their own they would not stop `host mkfs.ext4 /dev/sdb`.
+   trailing slashes or `..` should not get around it; the test suite covers
+   those cases, and two review passes looked for more. Claude Code's own
+   `deny` rules are also present, but they only match the outermost command,
+   so on their own they would not stop `host mkfs.ext4 /dev/sdb`.
 
    This list is deliberately short: it covers operations that should never be
    done from this container. Everything else that is risky (`zfs destroy`,
@@ -159,8 +163,10 @@ Three independent layers, in order of how much you should rely on them:
    bypass.
 
 3. **CLAUDE.md rules** (behavioral) — Claude reads these on every start.
-   "Always confirm before destructive operations" means Claude asks *you* in
-   the chat before proposing the command.
+   "Always confirm before destructive operations" means Claude is told to ask
+   *you* in the chat before proposing the command. Like any instruction to a
+   language model, this holds most of the time, not all of the time; that is
+   why it is the layer to rely on least.
 
 All of this lives in `~/.claude/settings.json` inside the persisted home
 directory and can be edited. It protects against mistakes, not against a
