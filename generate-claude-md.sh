@@ -65,8 +65,9 @@ if command -v virsh >/dev/null 2>&1; then
 fi
 
 echo "::PLUGINS::$(ls /boot/config/plugins/*.plg 2>/dev/null | xargs -r -I{} basename {} .plg | tr "\n" ",")"
-# User Scripts plugin: one folder per script, optional description file.
-echo "::USERSCRIPTS::$(for d in /boot/config/plugins/user.scripts/scripts/*/; do [ -d "$d" ] || continue; printf "%s:%s\n" "$(basename "$d")" "$(head -c 120 "$d/description" 2>/dev/null | tr "\n|" "  ")"; done | tr "\n" "|")"
+# User Scripts plugin: one folder per script, optional name and description files.
+# Emits folder:display-name:description per script.
+echo "::USERSCRIPTS::$(for d in /boot/config/plugins/user.scripts/scripts/*/; do [ -d "$d" ] || continue; f=$(basename "$d"); n=$(head -c 80 "$d/name" 2>/dev/null | tr -d "\n|:"); printf "%s:%s:%s\n" "$f" "${n:-$f}" "$(head -c 120 "$d/description" 2>/dev/null | tr "\n|" "  ")"; done | tr "\n" "|")"
 echo "::NETWORK::$(ip -br addr show 2>/dev/null | grep -v "^lo " | awk "{print \$1,\$3}" | tr "\n" ",")"
 EOF
 
@@ -226,10 +227,28 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
       if [ -n "$USERSCRIPTS" ]; then
         echo "### User Scripts"
         echo ""
-        # "name:description" → "- name — description" (or just "- name")
-        echo "$USERSCRIPTS" | awk -F: '{ name=$1; sub(/^[^:]*:/, ""); gsub(/^ +| +$/, ""); print ($0 == "") ? "- " name : "- " name " — " $0 }'
+        # Schedule per script from the plugin's schedule.json, readable through
+        # the boot mount when it is present. Keys there contain the script path.
+        SCHEDULE="${USERSCRIPTS_SCHEDULE:-/host/boot/config/plugins/user.scripts/schedule.json}"
+        schedule_for() {
+          [ -r "$SCHEDULE" ] || return 0
+          jq -r --arg f "$1" '
+            to_entries[] | select(.key | contains("/scripts/" + $f + "/"))
+            | .value | (.frequency // "") + (if (.custom // "") != "" then " " + .custom else "" end)
+          ' "$SCHEDULE" 2>/dev/null | head -1
+        }
+        while IFS= read -r entry; do
+          folder=${entry%%:*}; rest=${entry#*:}
+          display=${rest%%:*}; desc=${rest#*:}
+          desc=$(printf '%s' "$desc" | sed 's/^ *//; s/ *$//')
+          sched=$(schedule_for "$folder")
+          line="- ${display}"
+          [ -n "$desc" ] && line="${line} — ${desc}"
+          [ -n "$sched" ] && line="${line} [${sched}]"
+          echo "$line"
+        done <<< "$USERSCRIPTS"
         echo ""
-        echo "Scripts live in \`/host/boot/config/plugins/user.scripts/scripts/<name>/script\`; the schedule is in \`/host/boot/config/plugins/user.scripts/schedule.json\`."
+        echo "Scripts live in \`/host/boot/config/plugins/user.scripts/scripts/<folder>/script\`; the schedule is in \`/host/boot/config/plugins/user.scripts/schedule.json\`."
         echo ""
       fi
 

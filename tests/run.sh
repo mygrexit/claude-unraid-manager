@@ -61,10 +61,18 @@ write_scan() {
 ::POOLS::cache,nvme,
 ::VMS::win11,homeassistant,
 ::PLUGINS::dynamix.system.temp,unassigned.devices,
-::USERSCRIPTS::zfs-snapshot:Daily snapshots of tank/media|cleanup-tmp:|
+::USERSCRIPTS::zfs-snapshot:ZFS Snapshot:Daily snapshots of tank/media|cleanup-tmp:cleanup-tmp:|lock dataset:Lock Dataset:|
 ::NETWORK::eth0 192.168.1.10/24,br0 192.168.1.10/24,veth1a2b3c fe80::1/64,vnet0 fe80::2/64,shim-br0 192.168.1.10/24,
 EOF
 }
+
+# Fake User Scripts schedule, keyed by script path like the plugin does.
+cat > "$TMP/schedule.json" <<'EOF'
+{
+  "/boot/config/plugins/user.scripts/scripts/zfs-snapshot/script": { "frequency": "custom", "custom": "0 3 * * *", "id": "1" },
+  "/boot/config/plugins/user.scripts/scripts/cleanup-tmp/script": { "frequency": "disabled", "id": "2" }
+}
+EOF
 
 # Fake mountinfo: only /host/boot is a bind mount; /media must stay unlisted
 # even though the directory exists in the base image.
@@ -81,6 +89,7 @@ run_generator() {
   CLAUDE_MD_DEST="$TMP/CLAUDE.md" \
   FAKE_SCAN="$TMP/scan.txt" \
   MOUNTINFO="$TMP/mountinfo" \
+  USERSCRIPTS_SCHEDULE="$TMP/schedule.json" \
   bash "$ROOT/generate-claude-md.sh" >/dev/null
 }
 
@@ -99,9 +108,10 @@ expect_contains "$TMP/CLAUDE.md" "cache, nvme"
 expect_contains "$TMP/CLAUDE.md" "**Shares:** appdata, media"
 expect_contains "$TMP/CLAUDE.md" "- win11"
 expect_contains "$TMP/CLAUDE.md" "- unassigned.devices"
-expect_contains "$TMP/CLAUDE.md" "- zfs-snapshot — Daily snapshots of tank/media"
-expect_contains "$TMP/CLAUDE.md" "- cleanup-tmp"
-expect_not_contains "$TMP/CLAUDE.md" "- cleanup-tmp —"
+expect_contains "$TMP/CLAUDE.md" "- ZFS Snapshot — Daily snapshots of tank/media [custom 0 3 * * *]"
+expect_contains "$TMP/CLAUDE.md" "- cleanup-tmp [disabled]"
+expect_contains "$TMP/CLAUDE.md" "- Lock Dataset"
+expect_not_contains "$TMP/CLAUDE.md" "- Lock Dataset —"
 expect_contains "$TMP/CLAUDE.md" "- plex (plexinc/pms-docker, Up 3 days)"
 expect_contains "$TMP/CLAUDE.md" "### Containers (2 total)"
 expect_not_contains "$TMP/CLAUDE.md" "list truncated"
