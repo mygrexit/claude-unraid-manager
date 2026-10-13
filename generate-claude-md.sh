@@ -159,7 +159,8 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
         echo "Commands: \`host mdcmd status\`"
         echo ""
       elif [ -n "$ARRAY_MDSTATE" ]; then
-        echo "**No Unraid array configured** (pool-only setup, mdState=${ARRAY_MDSTATE})."
+        # Unraid 7 can run the array service with no data disks at all.
+        echo "**Unraid array:** ${ARRAY_MDSTATE} with 0 data disks (pool-only setup; all data lives on pools)."
         echo ""
       else
         echo "**Unraid array:** state unknown (\`mdcmd status\` returned nothing)."
@@ -213,11 +214,13 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
       fi
 
       # ── Network ────────────────────────────────────────────────────────────
-      NETWORK=$(get NETWORK)
+      # Skip per-container (veth), per-VM (vnet) and macvlan shim interfaces;
+      # they change constantly and say nothing about the host's network.
+      NETWORK=$(get NETWORK | tr ',' '\n' | sed '/^$/d' | grep -vE '^(veth|vnet|shim-)' || true)
       if [ -n "$NETWORK" ]; then
         echo "### Host Network Interfaces"
         echo ""
-        echo "$NETWORK" | tr ',' '\n' | sed '/^$/d' | sed 's/^/- /'
+        echo "$NETWORK" | awk '{print "- " $0}'
         echo ""
       fi
     fi
@@ -229,14 +232,16 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
   fi
 
   # ── Mount analysis ──────────────────────────────────────────────────────────
+  # Only bind mounts count: /media exists in the base image on its own.
+  is_mounted() { awk -v d="$1" '$5 == d { found = 1 } END { exit !found }' "${MOUNTINFO:-/proc/self/mountinfo}"; }
   echo "### Available Paths"
   echo ""
   echo "| Path | Access | Contents |"
   echo "|------|--------|----------|"
   for d in /host/boot /appdata /media /downloads /user /vms /backup; do
-    if [ -d "$d" ]; then
+    if is_mounted "$d"; then
       if [ -w "$d" ]; then mode="read-write"; else mode="read-only"; fi
-      items=$(find "$d" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)
+      items=$( (find "$d" -mindepth 1 -maxdepth 1 2>/dev/null || true) | wc -l)
       echo "| \`$d\` | $mode | $items entries |"
     fi
   done
@@ -245,9 +250,9 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
 
   # ── Boot access ────────────────────────────────────────────────────────────
   echo ""
-  if [ -w /host/boot ]; then
+  if is_mounted /host/boot && [ -w /host/boot ]; then
     cat "$SNIP/boot-rw.md"
-  elif [ -d /host/boot ]; then
+  elif is_mounted /host/boot; then
     cat "$SNIP/boot-ro.md"
   else
     cat "$SNIP/no-boot.md"

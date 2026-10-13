@@ -51,6 +51,24 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
+      # Build once into the local daemon and make sure the image actually runs
+      # (native claude binary present, helper scripts executable).
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: claude-unraid-manager:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test the image
+        run: |
+          docker run --rm claude-unraid-manager:smoke claude --version
+          docker run --rm claude-unraid-manager:smoke bash -c 'host; test $? -eq 64'
+          docker run --rm claude-unraid-manager:smoke bash -c 'echo "{\"tool_input\":{\"command\":\"wipefs --help\"}}" | claude-guard; test $? -eq 2'
+          docker run --rm claude-unraid-manager:smoke claude-settings-merge /usr/local/share/claude-unraid-manager/settings.json /usr/local/share/claude-unraid-manager/settings.json >/dev/null
+
       # Unraid runs on x86-64 only, so a single platform is built.
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:

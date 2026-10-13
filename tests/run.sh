@@ -61,9 +61,17 @@ write_scan() {
 ::POOLS::cache,nvme,
 ::VMS::win11,homeassistant,
 ::PLUGINS::dynamix.system.temp,unassigned.devices,
-::NETWORK::eth0 192.168.1.10/24,br0 192.168.1.10/24,
+::NETWORK::eth0 192.168.1.10/24,br0 192.168.1.10/24,veth1a2b3c fe80::1/64,vnet0 fe80::2/64,shim-br0 192.168.1.10/24,
 EOF
 }
+
+# Fake mountinfo: only /host/boot is a bind mount; /media must stay unlisted
+# even though the directory exists in the base image.
+cat > "$TMP/mountinfo" <<'EOF'
+100 90 0:50 / / rw,relatime - overlay overlay rw
+101 100 8:1 /boot /host/boot ro,relatime - vfat /dev/sda1 ro
+102 100 0:5 / /proc rw,nosuid - proc proc rw
+EOF
 
 run_generator() {
   PATH="$TMP/bin:$PATH" \
@@ -71,6 +79,7 @@ run_generator() {
   CLAUDE_MD_SHARE="$TMP/share" \
   CLAUDE_MD_DEST="$TMP/CLAUDE.md" \
   FAKE_SCAN="$TMP/scan.txt" \
+  MOUNTINFO="$TMP/mountinfo" \
   bash "$ROOT/generate-claude-md.sh" >/dev/null
 }
 
@@ -92,7 +101,13 @@ expect_contains "$TMP/CLAUDE.md" "- unassigned.devices"
 expect_contains "$TMP/CLAUDE.md" "- plex (plexinc/pms-docker, Up 3 days)"
 expect_contains "$TMP/CLAUDE.md" "Running in **host** network mode"
 expect_contains "$TMP/CLAUDE.md" "## Custom"
-expect_not_contains "$TMP/CLAUDE.md" "No Unraid array configured"
+expect_not_contains "$TMP/CLAUDE.md" "0 data disks"
+expect_contains "$TMP/CLAUDE.md" "- br0 192.168.1.10/24"
+expect_not_contains "$TMP/CLAUDE.md" "veth1a2b3c"
+expect_not_contains "$TMP/CLAUDE.md" "vnet0"
+expect_not_contains "$TMP/CLAUDE.md" "shim-br0"
+expect_not_contains "$TMP/CLAUDE.md" "| \`/media\` |"
+expect_not_contains "$TMP/CLAUDE.md" "Boot Configuration (not mounted)"
 
 # ── Scanner: bridge networking, custom section preserved ─────────────────────
 echo "scanner: bridge network mode, custom section kept"
@@ -111,9 +126,10 @@ fi
 echo "scanner: pool-only setup"
 rm -f "$TMP/CLAUDE.md"
 write_scan "net:[1]"
-sed -i 's/^::ARRAY_STATE::.*/::ARRAY_STATE::mdNumDisks=0|mdState=STOPPED|/' "$TMP/scan.txt"
+# Observed on a real Unraid 7 pool-only box: the array service is STARTED with no disks.
+sed -i 's/^::ARRAY_STATE::.*/::ARRAY_STATE::mdNumDisks=0|mdState=STARTED|/' "$TMP/scan.txt"
 run_generator
-expect_contains "$TMP/CLAUDE.md" "No Unraid array configured"
+expect_contains "$TMP/CLAUDE.md" "**Unraid array:** STARTED with 0 data disks"
 
 # ── Scanner: host scan fails ─────────────────────────────────────────────────
 echo "scanner: host scan failure"
@@ -122,7 +138,7 @@ FAKE_SCAN_FAIL=1 run_generator
 expect_contains "$TMP/CLAUDE.md" "Host scan failed"
 expect_contains "$TMP/CLAUDE.md" "- plex (plexinc/pms-docker, Up 3 days)"
 expect_contains "$TMP/CLAUDE.md" "Network mode unknown"
-expect_not_contains "$TMP/CLAUDE.md" "No Unraid array configured"
+expect_not_contains "$TMP/CLAUDE.md" "0 data disks"
 expect_not_contains "$TMP/CLAUDE.md" "Unraid unknown"
 
 # ── Guard hook ───────────────────────────────────────────────────────────────
