@@ -9,6 +9,31 @@ Unlike generic Claude Code containers, this one understands Unraid: it auto-disc
 > none of them is a security boundary. Read [Security Model](#security-model)
 > and the [Disclaimer](#disclaimer) before installing, and keep backups.
 
+## What This Is For
+
+An **interactive admin assistant** that acts on your server, with you in the
+loop: "Plex won't start, find out why", "the cache pool is filling up, what is
+taking the space", "set up a container for X so it shows in the Docker tab",
+"why did the parity check slow down" — from the Unraid terminal or from your
+phone via Remote Control. Claude has the context (your pools, shares,
+containers, plugins) and the tools (`docker`, `host zpool …`, `host virsh …`)
+to investigate and, after you confirm, to fix things.
+
+**What it is not:**
+
+- *Not a monitoring or inventory tool.* The `CLAUDE.md` scan exists so Claude
+  knows your system; it is not a report for you. If all you want is a regular
+  overview or alerts, a read-only scheduled job (`claude -p` with no write
+  permissions, or just a script and Unraid notifications) is simpler and has a
+  far smaller blast radius than an always-on agent with the Docker socket.
+- *Not an autonomous operator.* It is meant to be used with permission prompts
+  on and a human reading them. Nothing here is designed for unattended
+  changes.
+- *Not a security boundary.* See [Security Model](#security-model): with the
+  Docker socket mounted, the container is root-equivalent on the host. The
+  guard rails lower the chance of an accident; they do not contain a
+  determined attacker or a prompt-injected session.
+
 ## Features
 
 - **Auto-discovery** — on every start, scans your Unraid server and writes a `CLAUDE.md` with your storage topology, containers, VMs, plugins, and network config

@@ -185,11 +185,16 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
     fi
 
     # ── Docker containers ────────────────────────────────────────────────────
-    echo "### Containers"
+    CONTAINERS=$(docker ps -a --format '- {{.Names}} ({{.Image}}, {{.Status}})' 2>/dev/null || true)
+    CONTAINER_COUNT=$(printf '%s' "$CONTAINERS" | grep -c . || true)
+    echo "### Containers (${CONTAINER_COUNT} total)"
     echo ""
-    docker ps -a --format '- {{.Names}} ({{.Image}}, {{.Status}})' 2>/dev/null | head -40
+    printf '%s\n' "$CONTAINERS" | head -40
+    if [ "$CONTAINER_COUNT" -gt 40 ]; then
+      echo "- … and $((CONTAINER_COUNT - 40)) more (list truncated; use \`docker ps -a\` for all)"
+    fi
     echo ""
-    echo "_Snapshot from container start. Run \`docker ps -a\` for the current state._"
+    echo "_Snapshot from container start: names, images and status only. Use \`docker ps -a\`, \`docker inspect <name>\` and \`docker logs <name>\` for current state and details._"
     echo ""
 
     if [ -n "$SCAN" ]; then
