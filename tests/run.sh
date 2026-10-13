@@ -253,6 +253,27 @@ else
   pass "guard exits non-zero on unparsable input"
 fi
 
+# ── claude-session: --continue only with an existing conversation ────────────
+echo "claude-session: --continue handling"
+CFG="$TMP/cfg"; mkdir -p "$CFG"
+cat > "$TMP/bin/claude" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$SESSION_LOG"
+exit 0
+EOF
+chmod +x "$TMP/bin/claude"
+run_session() {
+  : > "$TMP/session.log"
+  PATH="$TMP/bin:$PATH" CLAUDE_CONFIG_DIR="$CFG" SESSION_LOG="$TMP/session.log" \
+    timeout 2 bash "$ROOT/claude-session" --continue --remote-control "My Box" >/dev/null 2>&1 || true
+  head -1 "$TMP/session.log"
+}
+first=$(run_session)
+if [ "$first" = "--remote-control My Box" ]; then pass "no history: --continue dropped"; else fail "no history: got '$first'"; fi
+mkdir -p "$CFG/projects/-workspace" && : > "$CFG/projects/-workspace/abc.jsonl"
+first=$(run_session)
+if [ "$first" = "--continue --remote-control My Box" ]; then pass "with history: --continue kept"; else fail "with history: got '$first'"; fi
+
 # ── Settings merge ───────────────────────────────────────────────────────────
 echo "settings merge"
 DEFAULTS="$ROOT/settings.json"

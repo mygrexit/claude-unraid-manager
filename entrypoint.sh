@@ -79,7 +79,9 @@ if [ "$REMOTE_CONTROL" = true ]; then
 else
   echo "  Remote: Remote Control is disabled"
 fi
-if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f /root/.claude/.credentials.json ]; then
+# A claude.ai login leaves .credentials.json and an oauthAccount entry in .claude.json.
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f /root/.claude/.credentials.json ] \
+   && ! grep -qs oauthAccount /root/.claude.json; then
   echo "  Login:  not logged in yet — attach and complete the login once"
 fi
 

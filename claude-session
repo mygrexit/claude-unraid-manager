@@ -14,9 +14,24 @@ FAST_SECONDS=30
 fast_exits=0
 args=("$@")
 
+# `claude --continue` exits with an error when there is nothing to continue
+# (first start after login). Conversations are stored per working directory
+# under <config dir>/projects/, so only pass --continue once one exists.
+has_history() {
+  compgen -G "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/*/*.jsonl" >/dev/null 2>&1
+}
+without_continue() {
+  local a
+  for a in "$@"; do [ "$a" = "--continue" ] || printf '%s\n' "$a"; done
+}
+
 while true; do
+  run_args=("${args[@]}")
+  if ! has_history; then
+    mapfile -t run_args < <(without_continue "${args[@]}")
+  fi
   started=$(date +%s)
-  claude "${args[@]}"
+  claude "${run_args[@]}"
   status=$?
   if [ $(( $(date +%s) - started )) -lt "$FAST_SECONDS" ]; then
     fast_exits=$((fast_exits + 1))
@@ -30,8 +45,7 @@ while true; do
     break
   fi
   if [ "$fast_exits" -eq 2 ]; then
-    without=()
-    for a in "${args[@]}"; do [ "$a" = "--continue" ] || without+=("$a"); done
+    mapfile -t without < <(without_continue "${args[@]}")
     if [ "${#without[@]}" -ne "${#args[@]}" ]; then
       args=("${without[@]}")
       echo "Dropping --continue in case the previous conversation is what fails."
