@@ -1,0 +1,59 @@
+{
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "Bash(docker ps *)",
+      "Bash(docker logs *)",
+      "Bash(docker inspect *)",
+      "Bash(docker images *)",
+      "Bash(docker stats --no-stream *)",
+      "Bash(docker top *)",
+      "Bash(docker version *)",
+      "Bash(docker info *)",
+      "Bash(docker network ls *)",
+      "Bash(docker volume ls *)",
+      "Bash(host zpool status *)",
+      "Bash(host zpool list *)",
+      "Bash(host zfs list *)",
+      "Bash(host zfs get *)",
+      "Bash(host btrfs filesystem show *)",
+      "Bash(host btrfs filesystem usage *)",
+      "Bash(host btrfs scrub status *)",
+      "Bash(host mdcmd status *)",
+      "Bash(host virsh list *)",
+      "Bash(host df *)",
+      "Bash(host free *)",
+      "Bash(host uptime *)",
+      "Bash(host ip addr)",
+      "Bash(host ip addr show)",
+      "Bash(host ip -br addr)",
+      "Bash(host ip -br addr show)",
+      "Bash(host ip route)",
+      "Bash(host ip -br link)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf /*)",
+      "Bash(mkfs*)",
+      "Bash(dd *of=/dev/*)",
+      "Bash(wipefs*)",
+      "Bash(sgdisk --zap*)",
+      "Bash(shred *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/bin/claude-guard",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,77 @@
+#!/bin/bash
+# claude-guard — PreToolUse hook for the Bash tool.
+#
+# Permission deny rules only match the outermost command Claude writes, so
+# `Bash(mkfs*)` does not stop `host mkfs.ext4 /dev/sdb` or
+# `sh -c 'mkfs.ext4 /dev/sdb'`. This hook looks at the whole command string
+# instead and blocks a small set of commands that are never run from this
+# container, whichever wrapper is used (`host`, `sh -c`, `docker run …
+# nsenter …`, absolute paths, trailing slashes, simple quoting tricks).
+#
+# It matches text. A command assembled from variables, written to a script
+# first, or obfuscated beyond simple quoting is outside its reach — it is a
+# safety net against mistakes, not a security boundary.
+#
+# Exit code 2 blocks the tool call; stderr is shown to Claude. Any other
+# failure exits 1 so that `onFailure: "block"` in settings.json applies.
+# Registered in settings.json under hooks.PreToolUse.
+set -uo pipefail
+
+if ! cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null); then
+  echo "claude-guard: could not parse hook input; blocking to be safe." >&2
+  exit 1
+fi
+[ -n "$cmd" ] || exit 0
+
+# Normalise before matching: drop empty quote pairs and backslashes
+# (mk''fs, mk\fs), collapse // and /./ so the path rules see canonical paths.
+norm=$(printf '%s\n' "$cmd" | sed -E "s/''//g; s/\"\"//g; s/\\\\//g; s#/+#/#g; s#/(\./)+#/#g")
+
+# Start of a command word: line start, or anything that is not part of a word
+# or an option. "/" and "." are allowed before it so /sbin/mkfs and ./mkfs match.
+B='(^|[^[:alnum:]_-])'
+# End of an argument: whitespace, a shell operator glued to it, a quote, or EOL.
+T='([[:space:];&|<>)"'"'"']|$)'
+# Optional shell quote around a path argument.
+Q="[\"']?"
+# Characters that cannot appear inside one path segment.
+NS='[^/[:space:]"'"'"']+'
+# Mount roots whose recursive deletion is catastrophic on Unraid: the container
+# root, /mnt and every first-level entry below it (user shares, pools, array
+# disks), appdata on any of them, the flash drive and the container-side
+# appdata mount. A trailing "/", "/*" or "/*/" still names the same root.
+ROOTS="(/|/mnt|/mnt/${NS}|/mnt/${NS}/appdata|/boot|/host/boot|/appdata)/*(\*/*)?"
+# Any path under /mnt that climbs with "..": resolves to something above.
+DOTDOT='/mnt[^[:space:]"'"'"']*/\.\.'
+# Any number of preceding arguments (options or other paths).
+ARGS='([^[:space:]]+[[:space:]]+)*'
+# Block devices that must never be written to (/dev/null and /dev/zero stay allowed).
+BLOCKDEV='/dev/(sd|hd|vd|xvd|nvme|md|mmcblk|nbd|loop|sr|zd|dm-|mapper/|disk/)'
+
+# "label|extended regex" — the label is reported to Claude when blocked.
+rules=(
+  "mkfs|${B}mkfs(\.[[:alnum:]]+)?${T}"
+  "wipefs|${B}wipefs${T}"
+  "shred|${B}shred${T}"
+  "dd writing to a block device|${B}dd[[:space:]]+${ARGS}of=${Q}${BLOCKDEV}"
+  "writing to a block device|(>>?[[:space:]]*${Q}${BLOCKDEV}|${B}(cp|tee|mv|install)[[:space:]]+${ARGS}${Q}${BLOCKDEV})"
+  "sgdisk --zap|${B}sgdisk(.*[[:space:]])(--zap(-all)?|-[[:alpha:]]*[zZ])${T}"
+  "zpool destroy/labelclear|${B}zpool[[:space:]]+(destroy|labelclear)${T}"
+  "rm on a mount root|${B}rm[[:space:]]+${ARGS}${Q}(${ROOTS}|${DOTDOT})${T}"
+)
+
+for rule in "${rules[@]}"; do
+  label=${rule%%|*}
+  regex=${rule#*|}
+  if printf '%s\n' "$norm" | grep -Eq -- "$regex"; then
+    {
+      echo "claude-guard blocked this command: $label."
+      echo "This class of command is never run from this container, even when asked."
+      echo "If the user really wants it, they should run it themselves from the Unraid terminal."
+      echo "The guard is registered in ~/.claude/settings.json (hooks.PreToolUse)."
+    } >&2
+    exit 2
+  fi
+done
+
+exit 0

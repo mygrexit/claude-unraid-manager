@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>claude-unraid-manager</Name>
+  <Repository>ghcr.io/mygrexit/claude-unraid-manager:latest</Repository>
+  <Registry>https://github.com/mygrexit/claude-unraid-manager/pkgs/container/claude-unraid-manager</Registry>
+  <Branch/>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/mygrexit/claude-unraid-manager/issues</Support>
+  <Project>https://github.com/mygrexit/claude-unraid-manager</Project>
+  <Overview>Claude Code as an Unraid system manager. Auto-discovers your storage (ZFS, btrfs, array), containers, VMs, plugins, and network on every start. Manages containers via Docker socket; runs host commands through a short-lived helper — no privileged mode needed. Safe defaults: boot drive read-only, no shares mounted. Opt in to more access as needed.[br][br]Attach via terminal or use Remote Control from your phone through the Claude app.[br][br]Requires an Anthropic account (claude.ai subscription or API key). Remote Control needs a claude.ai login.[br][br]WARNING: This tool gives an AI access to your server via the Docker socket. Review every action before confirming. The author accepts no liability for data loss or misconfiguration. Start with read-only access and expand only when you understand the implications.</Overview>
+  <Category>Tools:System</Category>
+  <WebUI/>
+  <TemplateURL>https://raw.githubusercontent.com/mygrexit/unraid-templates/main/templates/claude-unraid-manager.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/claude-ai.png</Icon>
+  <ExtraParams>--hostname claude-unraid-manager</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Data (login, settings, history)" Target="/root" Default="/mnt/user/appdata/claude-unraid-manager/home" Mode="rw" Description="Persisted home directory. Holds .claude/ (settings, history) and .claude.json (login). Must survive container rebuilds. Tip: a cache-only (exclusive) appdata share avoids FUSE overhead for the many small history writes." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/claude-unraid-manager/home</Config>
+  <Config Name="Workspace" Target="/workspace" Default="/mnt/user/appdata/claude-unraid-manager/workspace" Mode="rw" Description="Working directory. CLAUDE.md is auto-generated here on every start." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/claude-unraid-manager/workspace</Config>
+  <Config Name="Docker Socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="rw" Description="Required for container management and host command execution. Without this, Claude is just a code editor." Type="Path" Display="always" Required="true" Mask="false">/var/run/docker.sock</Config>
+  <Config Name="Unraid Boot Config" Target="/host/boot" Default="/boot" Mode="ro" Description="Read-only: view plugins, templates, share configs, startup script. Change to rw to let Claude modify Unraid configuration." Type="Path" Display="always" Required="false" Mask="false">/boot</Config>
+  <Config Name="Timezone" Target="TZ" Default="UTC" Mode="" Description="Your timezone (e.g. America/New_York, Europe/Berlin)." Type="Variable" Display="always" Required="false" Mask="false">UTC</Config>
+  <Config Name="Language" Target="CLAUDE_LANG" Default="" Mode="" Description="Response language (e.g. de, fr, es, nl). Empty = English." Type="Variable" Display="always" Required="false" Mask="false"></Config>
+  <Config Name="Remote Control Name" Target="REMOTE_CONTROL_NAME" Default="" Mode="" Description="Session name shown in the Claude app for phone/tablet access. Empty = container hostname, 'off' = disabled." Type="Variable" Display="always" Required="false" Mask="false"></Config>
+  <Config Name="Anthropic API Key" Target="ANTHROPIC_API_KEY" Default="" Mode="" Description="Optional. Leave empty to log in with a claude.ai subscription from the attached terminal (required for Remote Control). Set it to bill usage to a Claude Console API key instead." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="Resume Conversation" Target="CONTINUE" Default="true" Mode="" Description="Resume the last conversation on start. Set to false to always start fresh." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="tmux Session Name" Target="TMUX_SESSION" Default="main" Mode="" Description="Name of the persistent tmux session." Type="Variable" Display="advanced" Required="false" Mask="false">main</Config>
+  <Config Name="Host Helper Image" Target="HOST_HELPER_IMAGE" Default="alpine:3.21" Mode="" Description="Image used for the short-lived helper container that runs host commands. Only change this if you mirror images locally." Type="Variable" Display="advanced" Required="false" Mask="false">alpine:3.21</Config>
+  <Config Name="Container App Data" Target="/appdata" Default="" Mode="ro" Description="Optional: mount /mnt/user/appdata here so Claude can inspect container configs and logs. Read-only recommended." Type="Path" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Media" Target="/media" Default="" Mode="ro" Description="Optional: your media library. Only mount if you want Claude to help organize or manage media files." Type="Path" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Downloads" Target="/downloads" Default="" Mode="ro" Description="Optional: downloads share." Type="Path" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="VMs" Target="/vms" Default="" Mode="rw" Description="Optional: VM storage for disk image management. Read-write needed for VM operations." Type="Path" Display="advanced" Required="false" Mask="false"></Config>
+  <TailscaleStateDir/>
+</Container>

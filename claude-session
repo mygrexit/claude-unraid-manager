@@ -1,0 +1,42 @@
+#!/bin/bash
+# claude-session — keeps Claude Code running inside the tmux session.
+#
+# When Claude exits (crash, /exit, update), it is restarted after a short
+# pause so the session and the Remote Control endpoint come back on their
+# own. Ctrl-C during the pause drops to a shell instead. If Claude keeps
+# exiting right away, --continue is dropped first (the previous conversation
+# may be the problem); if that does not help, the loop gives up after a few
+# attempts rather than scrolling forever.
+# All arguments are passed through to `claude`.
+
+MAX_FAST_EXITS=5   # consecutive exits faster than FAST_SECONDS stop the loop
+FAST_SECONDS=30
+fast_exits=0
+args=("$@")
+
+while true; do
+  started=$(date +%s)
+  claude "${args[@]}"
+  status=$?
+  if [ $(( $(date +%s) - started )) -lt "$FAST_SECONDS" ]; then
+    fast_exits=$((fast_exits + 1))
+  else
+    fast_exits=0
+  fi
+  echo
+  if [ "$fast_exits" -ge "$MAX_FAST_EXITS" ]; then
+    echo "Claude exited $fast_exits times in a row within ${FAST_SECONDS}s (last exit status $status)."
+    echo "Not restarting. Check the output above, then run: $(printf '%q ' claude-session "${args[@]}")"
+    break
+  fi
+  if [ "$fast_exits" -eq 2 ]; then
+    without=()
+    for a in "${args[@]}"; do [ "$a" = "--continue" ] || without+=("$a"); done
+    if [ "${#without[@]}" -ne "${#args[@]}" ]; then
+      args=("${without[@]}")
+      echo "Dropping --continue in case the previous conversation is what fails."
+    fi
+  fi
+  echo "Claude exited (status $status). Restarting in 5 s (Ctrl-C for a shell)."
+  sleep 5 || break
+done

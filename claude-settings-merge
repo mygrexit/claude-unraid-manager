@@ -1,0 +1,28 @@
+#!/bin/bash
+# claude-settings-merge <defaults.json> <user.json>
+#
+# Prints the user's settings with the shipped defaults merged underneath
+# (user keys win on conflicts). If the user's hooks do not contain the
+# guard hook, the shipped PreToolUse entries are appended to theirs instead
+# of replacing them. Idempotent: running it on its own output changes nothing.
+set -euo pipefail
+
+if [ $# -ne 2 ]; then
+  echo "usage: claude-settings-merge <defaults.json> <user.json>" >&2
+  exit 64
+fi
+
+jq -s '
+  def has_guard:
+    [ (.hooks.PreToolUse? // [])[] | (.hooks? // [])[] | (.command? // "") ]
+    | index("/usr/local/bin/claude-guard") != null;
+
+  .[0] as $defaults | .[1] as $user |
+  ($defaults * $user) as $merged |
+  if ($user | has_guard) then
+    $merged
+  else
+    $merged
+    | .hooks.PreToolUse = (($user.hooks.PreToolUse // []) + ($defaults.hooks.PreToolUse // []))
+  end
+' "$1" "$2"

@@ -1,0 +1,23 @@
+#!/bin/bash
+# host — run a command on the Unraid host from inside this container.
+#
+# Starts a short-lived privileged helper container that enters the host's
+# namespaces (PID 1) and runs the command there. The main container itself
+# does not need --privileged; only the Docker socket is required.
+#
+#   host zpool status
+#   host sh -c 'ls /boot/config/plugins/*.plg'
+#
+# The helper image is tiny and is pre-pulled by the entrypoint. Override it
+# with HOST_HELPER_IMAGE if you mirror images locally.
+set -euo pipefail
+
+IMAGE="${HOST_HELPER_IMAGE:-alpine:3.21}"
+
+if [ $# -eq 0 ]; then
+  echo "usage: host <command> [args...]" >&2
+  exit 64
+fi
+
+exec docker run --rm -i --privileged --pid=host "$IMAGE" \
+  nsenter -t 1 -m -u -i -n -p -- "$@"
