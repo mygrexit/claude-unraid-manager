@@ -16,18 +16,26 @@ Unlike generic Claude Code containers, this one understands Unraid: it auto-disc
 
 ## Quick Start
 
-Not in Community Applications yet. Install it by hand:
+Not in Community Applications yet, and no image has been published yet, so
+build it on the server and install the template by hand:
 
-1. Copy `unraid-template.xml` from this repository to
-   `/boot/config/plugins/dockerMan/templates-user/my-claude-unraid-manager.xml`
-   on your Unraid server.
-2. In the Unraid web UI open **Docker → Add Container** and pick
-   `claude-unraid-manager` from the template dropdown.
-3. Review the mounts (boot drive read-only, no shares by default), apply, then
-   attach to the session (see below) to log in.
+```bash
+# On the Unraid terminal
+cd /mnt/user/appdata && git clone https://github.com/mygrexit/claude-unraid-manager.git claude-unraid-manager-src
+docker build -t claude-unraid-manager:local claude-unraid-manager-src
+sed 's#<Repository>.*</Repository>#<Repository>claude-unraid-manager:local</Repository>#' \
+  claude-unraid-manager-src/unraid-template.xml \
+  > /boot/config/plugins/dockerMan/templates-user/my-claude-unraid-manager.xml
+```
 
-The image is published at `ghcr.io/mygrexit/claude-unraid-manager:latest`
-once a release is tagged.
+Then in the Unraid web UI open **Docker → Add Container**, pick
+`claude-unraid-manager` from the template dropdown, review the mounts (boot
+drive read-only, no shares by default), apply, and attach to the session (see
+below) to log in.
+
+Once a release is tagged the image is published at
+`ghcr.io/mygrexit/claude-unraid-manager:latest`, which is what the template
+points to by default; the build and `sed` steps above then go away.
 
 ## How It Works
 
@@ -126,8 +134,15 @@ chmod +x /usr/local/bin/claude
 ```
 
 On first start, attach and complete the login (claude.ai subscription or
-Console account). If Claude exits for any reason, it restarts after 5 seconds;
-press Ctrl-C during that pause to get a shell instead.
+Console account). Inside a container the browser cannot open on its own:
+press `c` to copy the login URL, open it on any device, and paste the code it
+shows back into the terminal when asked.
+
+If Claude exits for any reason, it restarts after 5 seconds; press Ctrl-C
+during that pause to get a shell instead. If it keeps exiting right away, the
+wrapper first drops `--continue` (in case the previous conversation is what
+fails) and gives up after five fast exits in a row, leaving the output on
+screen.
 
 From phone/tablet: open the Claude app and look for the Remote Control session name (defaults to the container hostname). Remote Control requires a claude.ai login; it is not available with an API key alone.
 
@@ -182,7 +197,7 @@ docker build -t claude-unraid-manager .
 
 # Scanner and guard tests run without Docker or Unraid:
 bash tests/run.sh
-shellcheck -s bash entrypoint.sh generate-claude-md.sh host claude-guard claude-session tests/run.sh
+shellcheck -s bash entrypoint.sh generate-claude-md.sh host claude-guard claude-session claude-settings-merge tests/run.sh
 ```
 
 ## License
