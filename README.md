@@ -1,13 +1,19 @@
 # Claude Unraid Manager
 
-An always-on [Claude Code](https://claude.com/claude-code) container purpose-built for **Unraid system administration**.
+[Claude Code](https://claude.com/claude-code) set up as an **Unraid
+administrator**, not as a coding tool: an always-on container in which Claude
+manages your containers, storage, VMs, plugins and configuration, with you
+confirming each step.
+
+> ⚠️ **For experienced Unraid users only.** This gives an AI model
+> root-equivalent access to your server through the Docker socket. The
+> defaults are conservative and there are guard rails, but none of them is a
+> security boundary, and you are the one approving what Claude runs. If you
+> would not be comfortable doing the same work yourself on the Unraid command
+> line, this is not for you. Read [Security Model](#security-model) and the
+> [Disclaimer](#disclaimer) before installing, and keep backups.
 
 Unlike generic Claude Code containers, this one understands Unraid: it auto-discovers your storage pools (ZFS, btrfs, XFS, or parity array), running containers, VMs, plugins, shares, and network — and generates a tailored `CLAUDE.md` so Claude knows exactly what it can and cannot do on *your* server.
-
-> ⚠️ **This gives an AI model root-equivalent access to your server** through the
-> Docker socket. The defaults are conservative and there are guard rails, but
-> none of them is a security boundary. Read [Security Model](#security-model)
-> and the [Disclaimer](#disclaimer) before installing, and keep backups.
 
 ## What This Is For
 
@@ -29,6 +35,9 @@ to investigate and, after you confirm, to fix things.
 - *Not an autonomous operator.* It is meant to be used with permission prompts
   on and a human reading them. Nothing here is designed for unattended
   changes.
+- *Not a development environment.* It can edit files in `/workspace`, but
+  everything about it (context, permissions, guard rails) is built for
+  administration. For coding, use a normal Claude Code install.
 - *Not a security boundary.* See [Security Model](#security-model): with the
   Docker socket mounted, the container is root-equivalent on the host. The
   guard rails lower the chance of an accident; they do not contain a
@@ -229,6 +238,11 @@ loss, misconfiguration, downtime, or any other damage resulting from the use of
 this tool.**
 
 ## Building and Testing Locally
+
+The image is Debian slim plus the Claude Code native binary, the Docker CLI,
+tmux, git, ssh, ripgrep and jq. Node.js is not included — Claude Code does not
+need it — so MCP servers that are started through `npx` do not work inside
+this container.
 
 ```bash
 docker build -t claude-unraid-manager .
