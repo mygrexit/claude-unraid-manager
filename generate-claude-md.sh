@@ -65,6 +65,8 @@ if command -v virsh >/dev/null 2>&1; then
 fi
 
 echo "::PLUGINS::$(ls /boot/config/plugins/*.plg 2>/dev/null | xargs -r -I{} basename {} .plg | tr "\n" ",")"
+# User Scripts plugin: one folder per script, optional description file.
+echo "::USERSCRIPTS::$(for d in /boot/config/plugins/user.scripts/scripts/*/; do [ -d "$d" ] || continue; printf "%s:%s\n" "$(basename "$d")" "$(head -c 120 "$d/description" 2>/dev/null | tr "\n|" "  ")"; done | tr "\n" "|")"
 echo "::NETWORK::$(ip -br addr show 2>/dev/null | grep -v "^lo " | awk "{print \$1,\$3}" | tr "\n" ",")"
 EOF
 
@@ -219,6 +221,18 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
       fi
 
       # ── Network ────────────────────────────────────────────────────────────
+      # ── User Scripts ───────────────────────────────────────────────────────
+      USERSCRIPTS=$(lines USERSCRIPTS)
+      if [ -n "$USERSCRIPTS" ]; then
+        echo "### User Scripts"
+        echo ""
+        # "name:description" → "- name — description" (or just "- name")
+        echo "$USERSCRIPTS" | awk -F: '{ name=$1; sub(/^[^:]*:/, ""); gsub(/^ +| +$/, ""); print ($0 == "") ? "- " name : "- " name " — " $0 }'
+        echo ""
+        echo "Scripts live in \`/host/boot/config/plugins/user.scripts/scripts/<name>/script\`; the schedule is in \`/host/boot/config/plugins/user.scripts/schedule.json\`."
+        echo ""
+      fi
+
       # Skip per-container (veth), per-VM (vnet) and macvlan shim interfaces;
       # they change constantly and say nothing about the host's network.
       NETWORK=$(get NETWORK | tr ',' '\n' | sed '/^$/d' | grep -vE '^(veth|vnet|shim-)' || true)

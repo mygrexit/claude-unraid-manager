@@ -80,7 +80,7 @@ On every start, a discovery script scans the host and generates a `CLAUDE.md` in
 - System info (Unraid version, CPU, RAM)
 - Storage topology (pools, datasets, array state, shares, encrypted datasets)
 - Running containers and their status
-- VMs, plugins, host network interfaces
+- VMs, plugins, User Scripts (name and description), host network interfaces
 - Which paths are mounted and whether they're read-only or read-write
 - Whether the container runs in host or bridge networking, and what that means
 

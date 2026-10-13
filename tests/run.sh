@@ -61,6 +61,7 @@ write_scan() {
 ::POOLS::cache,nvme,
 ::VMS::win11,homeassistant,
 ::PLUGINS::dynamix.system.temp,unassigned.devices,
+::USERSCRIPTS::zfs-snapshot:Daily snapshots of tank/media|cleanup-tmp:|
 ::NETWORK::eth0 192.168.1.10/24,br0 192.168.1.10/24,veth1a2b3c fe80::1/64,vnet0 fe80::2/64,shim-br0 192.168.1.10/24,
 EOF
 }
@@ -98,6 +99,9 @@ expect_contains "$TMP/CLAUDE.md" "cache, nvme"
 expect_contains "$TMP/CLAUDE.md" "**Shares:** appdata, media"
 expect_contains "$TMP/CLAUDE.md" "- win11"
 expect_contains "$TMP/CLAUDE.md" "- unassigned.devices"
+expect_contains "$TMP/CLAUDE.md" "- zfs-snapshot — Daily snapshots of tank/media"
+expect_contains "$TMP/CLAUDE.md" "- cleanup-tmp"
+expect_not_contains "$TMP/CLAUDE.md" "- cleanup-tmp —"
 expect_contains "$TMP/CLAUDE.md" "- plex (plexinc/pms-docker, Up 3 days)"
 expect_contains "$TMP/CLAUDE.md" "### Containers (2 total)"
 expect_not_contains "$TMP/CLAUDE.md" "list truncated"
