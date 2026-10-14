@@ -4,7 +4,6 @@
   <Repository>ghcr.io/mygrexit/claude-unraid-manager:beta</Repository>
   <Beta>true</Beta>
   <Registry>https://github.com/mygrexit/claude-unraid-manager/pkgs/container/claude-unraid-manager</Registry>
-  <Branch/>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>bash</Shell>
@@ -13,7 +12,23 @@
   <Project>https://github.com/mygrexit/claude-unraid-manager</Project>
   <ReadMe>https://github.com/mygrexit/claude-unraid-manager#readme</ReadMe>
   <License>MIT</License>
-  <Overview>FOR EXPERIENCED UNRAID USERS ONLY. Claude Code set up as an Unraid administrator (not a coding tool): an AI assistant that manages containers, storage, VMs, plugins and configuration from the terminal or from your phone via Remote Control. It is meant to ask before it acts; that only holds as long as you keep the permission prompts on and read them.[br][br]Auto-discovers your storage (ZFS, btrfs, array), containers, VMs, plugins, User Scripts and network on every start. Manages containers via the Docker socket; runs host commands through a short-lived helper — no privileged mode needed. Safe defaults: boot drive read-only, no shares mounted. Opt in to more access as needed.[br][br]Requires an Anthropic account (claude.ai subscription or API key). Remote Control needs a claude.ai login.[br][br]BETA: tested on the author's two Unraid 7.3.3 servers (ZFS pool-only), not on a range of setups. It is an AI agent: its rules shape what it does, they do not guarantee it.[br][br]WARNING: The Docker socket gives this container root-equivalent access to your server; the guard rails reduce accidents but are not a security boundary. If you would not do the same work yourself on the Unraid command line, do not install this. Review every action before confirming. Keep backups. The author accepts no liability for data loss or misconfiguration.</Overview>
+  <Overview>**For experienced Unraid users only.**
+
+Claude Code set up as an Unraid administrator, not as a coding tool: an AI assistant that manages containers, storage, VMs, plugins and configuration from the terminal or from your phone via Remote Control. It is meant to ask before it acts; that only holds as long as you keep the permission prompts on and read them.
+
+**What it does**
+- Scans your storage (ZFS, btrfs, array), containers, VMs, plugins, User Scripts and network on every start and writes a CLAUDE.md so Claude knows your server.
+- Manages containers via the Docker socket and runs host commands through a short-lived helper container. No privileged mode needed.
+- Safe defaults: boot drive read-only, no shares mounted. Opt in to more access as needed.
+
+**Requirements**
+An Anthropic account: a claude.ai subscription (also needed for Remote Control) or a Console API key.
+
+**Beta**
+Tested on the author's two Unraid 7.3.3 servers (ZFS pool-only), not on a range of setups. It is an AI agent: its rules shape what it does, they do not guarantee it.
+
+**Warning**
+The Docker socket gives this container root-equivalent access to your server. The guard rails reduce accidents but are not a security boundary. If you would not do the same work yourself on the Unraid command line, do not install this. Review every action before confirming. Keep backups. The author accepts no liability for data loss or misconfiguration.</Overview>
   <Changes>
 ### 0.1.0-beta.1 (2026-10-14)
 - First public beta. Tested on two Unraid 7.3.3 servers (ZFS pool-only).
@@ -23,12 +38,9 @@
   <TemplateURL>https://raw.githubusercontent.com/mygrexit/unraid-templates/main/templates/claude-unraid-manager.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/mygrexit/unraid-templates/main/images/claude-unraid-manager.png</Icon>
   <ExtraParams>--hostname claude-unraid-manager</ExtraParams>
-  <PostArgs/>
-  <CPUset/>
-  <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Requires/>
+  <Requires>An Anthropic account (claude.ai subscription or Console API key) and access to the Docker socket. For experienced Unraid users only.</Requires>
   <Config Name="Data (login, settings, history)" Target="/root" Default="/mnt/user/appdata/claude-unraid-manager/home" Mode="rw" Description="Persisted home directory. Holds .claude/ (settings, history) and .claude.json (login). Must survive container rebuilds. Tip: a cache-only (exclusive) appdata share avoids FUSE overhead for the many small history writes." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/claude-unraid-manager/home</Config>
   <Config Name="Workspace" Target="/workspace" Default="/mnt/user/appdata/claude-unraid-manager/workspace" Mode="rw" Description="Working directory. CLAUDE.md is auto-generated here on every start." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/claude-unraid-manager/workspace</Config>
   <Config Name="Docker Socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="rw" Description="Required for container management and host command execution. Without this, Claude is just a code editor." Type="Path" Display="always" Required="true" Mask="false">/var/run/docker.sock</Config>
@@ -44,5 +56,4 @@
   <Config Name="Media" Target="/media" Default="" Mode="ro" Description="Optional: your media library. Only mount if you want Claude to help organize or manage media files." Type="Path" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Downloads" Target="/downloads" Default="" Mode="ro" Description="Optional: downloads share." Type="Path" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="VMs" Target="/vms" Default="" Mode="rw" Description="Optional: VM storage for disk image management. Read-write needed for VM operations." Type="Path" Display="advanced" Required="false" Mask="false"></Config>
-  <TailscaleStateDir/>
 </Container>
