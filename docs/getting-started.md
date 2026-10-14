@@ -86,7 +86,7 @@ On the very first start Claude Code shows its setup:
 4. The browser shows a **code**. Paste it into the terminal where it says
    *Paste code here if prompted*, then `Enter`.
 5. `Login successful` → `Enter`.
-6. Claude Code asks once whether to make **auto mode** its default. Say no:
+6. If Claude Code asks whether to make **auto mode** its default, say no:
    this container is set up to ask you before it acts (Manual mode), and auto
    mode stays one `Shift+Tab` away if you ever want it for a session.
 

@@ -189,8 +189,8 @@ the same. From the detached shell, `tmux attach -t main` goes back in.
 On first start, attach and complete the login (claude.ai subscription or
 Console account). Inside a container the browser cannot open on its own:
 press `c` to copy the login URL, open it on any device, and paste the code it
-shows back into the terminal when asked. Claude Code then asks once whether
-to switch its default to auto mode; answer no to keep the permission prompts.
+shows back into the terminal when asked. If Claude Code asks whether to switch
+its default to auto mode, answer no to keep the permission prompts.
 
 If Claude exits for any reason, it restarts after 5 seconds; press Ctrl-C
 during that pause to get a shell instead. If it keeps exiting right away, the
