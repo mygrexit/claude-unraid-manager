@@ -447,6 +447,16 @@ if [ "$(MOUNTINFO="$TMP/mountinfo-boot-rw" bash "$ROOT/boot-mode")" = rw ]; then
 if [ "$(MOUNTINFO="$TMP/mountinfo-superro" bash "$ROOT/boot-mode")" = ro ]; then pass "boot-mode: ro filesystem"; else fail "boot-mode superro"; fi
 if [ "$(MOUNTINFO="$TMP/mountinfo-noboot" bash "$ROOT/boot-mode")" = none ]; then pass "boot-mode: none"; else fail "boot-mode none"; fi
 if [ "$(MOUNTINFO="$TMP/no-such-file" bash "$ROOT/boot-mode")" = unknown ]; then pass "boot-mode: unknown"; else fail "boot-mode unknown"; fi
+# host: an inherited MOUNTINFO (e.g. exported in the session shell) must not
+# skip the read-only remount. The fake docker just echoes its arguments.
+mkdir -p "$TMP/hostbin"; cp "$ROOT/host" "$ROOT/boot-mode" "$TMP/hostbin/"
+cat > "$TMP/hostbin/docker" <<'FAKE'
+#!/bin/sh
+echo "$@"
+FAKE
+chmod +x "$TMP/hostbin/docker"
+out=$(MOUNTINFO="$TMP/mountinfo-boot-rw" PATH="$TMP/hostbin:$PATH" bash "$TMP/hostbin/host" true)
+case "$out" in *"remount,bind,ro /boot"*) pass "host: ignores inherited MOUNTINFO" ;; *) fail "host: MOUNTINFO skipped the remount: $out" ;; esac
 
 echo "guard: still silent for everyday commands"
 expect_allowed 'logs plex'

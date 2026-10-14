@@ -4,7 +4,7 @@
 # Prints one word: rw (read-write bind on a read-write filesystem), ro
 # (read-only bind or read-only filesystem), none (not mounted), or unknown
 # (mountinfo unreadable). Used by `host` and `claude-guard`; MOUNTINFO
-# overrides the source for tests.
+# overrides the source for tests (`host` clears it before calling).
 set -u
 mi="${MOUNTINFO:-/proc/self/mountinfo}"
 [ -r "$mi" ] || { echo unknown; exit 0; }

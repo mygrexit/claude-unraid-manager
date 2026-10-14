@@ -38,6 +38,9 @@ Tested on the author's two Unraid 7.3.3 servers (ZFS pool-only), not on a range 
 **Warning**
 The Docker socket gives this container root-equivalent access to your server. The guard rails reduce accidents but are not a security boundary. If you would not do the same work yourself on the Unraid command line, do not install this. Review every action before confirming. Keep backups. The author accepts no liability for data loss or misconfiguration.</Overview>
   <Changes>
+### 0.1.0-beta.7 (2026-10-15)
+- Fixes a way around the read-only flash drive for host commands: a MOUNTINFO variable set in the session shell could make `host` skip the read-only remount. `host` now ignores it.
+
 ### 0.1.0-beta.6 (2026-10-14)
 - The boot-drive mount mode is enforced for host commands too: unless /host/boot is mounted read-write, `host` runs every command with /boot read-only (own mount namespace), so writes fail at the kernel whatever they look like. Read-write makes commands touching the flash drive ask with a reason. Claude is told not to offer a way around.
 

@@ -24,6 +24,9 @@
 set -euo pipefail
 
 IMAGE="${HOST_HELPER_IMAGE:-alpine:3.21}"
+# boot-mode accepts MOUNTINFO as a test fixture; a value inherited from the
+# session shell must not decide whether the remount below is skipped.
+unset MOUNTINFO
 
 if [ $# -eq 0 ]; then
   echo "usage: host <command> [args...]" >&2
