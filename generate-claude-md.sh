@@ -290,46 +290,70 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
   # ── Mount analysis ──────────────────────────────────────────────────────────
   # Every bind mount the user added in the template is listed, whatever the
   # container path is called. System mounts and the container's own data
-  # paths are left out. Access comes from the mount options, not from -w.
+  # paths are left out. A path is read-only if either the bind itself or the
+  # underlying filesystem is (per-mount options vs. superblock options in
+  # mountinfo). Mount points come octal-escaped from the kernel ("\040" for a
+  # space) and are decoded for display. Works with mawk.
   MOUNTINFO="${MOUNTINFO:-/proc/self/mountinfo}"
-  is_mounted() { awk -v d="$1" '$5 == d { found = 1 } END { exit !found }' "$MOUNTINFO"; }
+  RO_RE='(^|,)ro(,|$)'
+  # "read-only" / "read-write" for one mount point (last entry wins), empty if not mounted.
+  mount_mode() {
+    awk -v d="$1" -v ro="$RO_RE" '$5 == d { m = ($6 ~ ro || $NF ~ ro) ? "read-only" : "read-write" } END { print m }' "$MOUNTINFO" 2>/dev/null
+  }
+  decode_path() {
+    printf '%s\n' "$1" | awk '{
+      s = $0; out = ""
+      while (match(s, /\\[0-7][0-7][0-7]/)) {
+        code = substr(s, RSTART + 1, 1) * 64 + substr(s, RSTART + 2, 1) * 8 + substr(s, RSTART + 3, 1)
+        out = out substr(s, 1, RSTART - 1) sprintf("%c", code)
+        s = substr(s, RSTART + 4)
+      }
+      print out s
+    }'
+  }
+  # One "escaped-path mode" line per user mount. An over-mounted path keeps its
+  # last entry; submounts of a listed path (Docker binds recursively) are folded in.
   user_mounts() {
-    awk '{
-      mp = $5; opts = $6
-      if (mp == "/" || mp ~ "^/(proc|sys|dev|run)(/|$)" || mp ~ "^/etc/(hosts|hostname|resolv\\.conf)$" ||
+    awk -v ro="$RO_RE" '{
+      mp = $5
+      if (mp == "/" || mp ~ "^/(proc|sys|dev)(/|$)" || mp ~ "^/etc/(hosts|hostname|resolv\\.conf)$" ||
           mp == "/root" || mp ~ "^/root/" || mp == "/workspace" || mp ~ "docker\\.sock$") next
-      print mp, (opts ~ /(^|,)ro(,|$)/ ? "read-only" : "read-write")
-    }' "$MOUNTINFO" | sort -u
+      print mp, (($6 ~ ro || $NF ~ ro) ? "read-only" : "read-write")
+    }' "$MOUNTINFO" 2>/dev/null | tac | awk '!seen[$1]++' | LC_ALL=C sort \
+      | awk '{ if (keep != "" && index($1, keep "/") == 1) next; keep = $1; print }'
   }
   echo "### Available Paths"
   echo ""
-  MOUNTS=$(user_mounts)
+  MOUNTS=$(user_mounts || true)
   if [ -n "$MOUNTS" ]; then
     echo "| Path | Access | Contents |"
     echo "|------|--------|----------|"
-    while read -r mp mode; do
+    while read -r raw mode; do
+      mp=$(decode_path "$raw")
       items=$( (find "$mp" -mindepth 1 -maxdepth 1 2>/dev/null || true) | wc -l)
       echo "| \`$mp\` | $mode | $items entries |"
     done <<< "$MOUNTS"
   else
-    echo "Nothing from the host is mounted besides this container's own data and the Docker socket."
+    echo "Nothing from the host is mounted besides this container's own data."
   fi
   echo ""
-  echo "Shares that appear under **Shares** above but not in this table are not mounted; you cannot read them."
+  if [ -n "$SCAN" ]; then
+    echo "Shares that appear under **Shares** above but not in this table are not mounted; you cannot read them."
+  else
+    echo "Host shares that are not in this table are not mounted; you cannot read them."
+  fi
   echo "If the user wants you to work with one, do not guess at its contents. Tell them how to add it:"
   echo "Docker tab → this container → Edit → *Add another Path* → Host path \`/mnt/user/<share>\`,"
-  echo "Container path \`/<share>\` (any name), Access Mode read-only unless you must change files → Apply."
+  echo "Container path \`/<share>\` (any name outside \`/root\`), Access Mode read-only unless you must change files → Apply."
   echo "The container restarts and the path shows up in this table."
 
   # ── Boot access ────────────────────────────────────────────────────────────
   echo ""
-  if is_mounted /host/boot && [ -w /host/boot ]; then
-    cat "$SNIP/boot-rw.md"
-  elif is_mounted /host/boot; then
-    cat "$SNIP/boot-ro.md"
-  else
-    cat "$SNIP/no-boot.md"
-  fi
+  case "$(mount_mode /host/boot)" in
+    read-write) cat "$SNIP/boot-rw.md" ;;
+    read-only)  cat "$SNIP/boot-ro.md" ;;
+    *)          cat "$SNIP/no-boot.md" ;;
+  esac
 
   # ── Network mode ───────────────────────────────────────────────────────────
   # Host networking means this container shares the host's network namespace;

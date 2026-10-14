@@ -92,11 +92,19 @@ cat > "$TMP/mountinfo" <<'EOF'
 109 100 0:21 /docker.sock /var/run/docker.sock rw,nosuid - tmpfs tmpfs rw
 110 100 8:1 /boot /host/boot ro,relatime - vfat /dev/sda1 ro
 111 100 0:61 /Fotos /photos rw,relatime - fuse.shfs shfs rw
+112 100 0:61 /My\040Photos /My\040Photos rw,relatime - fuse.shfs shfs rw
+113 100 0:70 / /archive rw,relatime - zfs tank/archive ro
+114 100 0:61 /Media /media2 ro,relatime - fuse.shfs shfs rw
+115 100 0:61 /Media /media2 rw,relatime - fuse.shfs shfs rw
+116 100 0:80 / /mnt rw,relatime - fuse.shfs shfs rw
+117 116 9:1 / /mnt/disk1 rw,relatime - xfs /dev/md1p1 rw
+118 116 0:81 / /mnt/cache rw,relatime - zfs cache rw
+119 100 0:61 /Scans /run/scans rw,relatime - fuse.shfs shfs rw
 EOF
 
 run_generator() {
   PATH="$TMP/bin:$PATH" \
-  DOCKER_SOCK="$TMP/docker.sock" \
+  DOCKER_SOCK="${DOCKER_SOCK_OVERRIDE:-$TMP/docker.sock}" \
   CLAUDE_MD_SHARE="$TMP/share" \
   CLAUDE_MD_DEST="$TMP/CLAUDE.md" \
   FAKE_SCAN="$TMP/scan.txt" \
@@ -145,10 +153,21 @@ done
 expect_not_contains "$TMP/CLAUDE.md" "| \`/media\` |"
 expect_contains "$TMP/CLAUDE.md" "| \`/host/boot\` | read-only |"
 expect_contains "$TMP/CLAUDE.md" "| \`/photos\` | read-write |"
+expect_contains "$TMP/CLAUDE.md" "| \`/My Photos\` | read-write |"          # \040 decoded
+expect_not_contains "$TMP/CLAUDE.md" '\040'
+expect_contains "$TMP/CLAUDE.md" "| \`/archive\` | read-only |"            # ro superblock, rw bind
+expect_contains "$TMP/CLAUDE.md" "| \`/media2\` | read-write |"            # over-mount: last wins
+expect_not_contains "$TMP/CLAUDE.md" "| \`/media2\` | read-only |"
+expect_contains "$TMP/CLAUDE.md" "| \`/mnt\` | read-write |"               # submounts folded in
+expect_not_contains "$TMP/CLAUDE.md" "| \`/mnt/disk1\` |"
+expect_not_contains "$TMP/CLAUDE.md" "| \`/mnt/cache\` |"
+expect_contains "$TMP/CLAUDE.md" "| \`/run/scans\` | read-write |"         # /run is not a system prefix
 for sys in /root /workspace /etc/hosts /proc /var/run/docker.sock; do
   expect_not_contains "$TMP/CLAUDE.md" "| \`$sys\` |"
 done
 expect_contains "$TMP/CLAUDE.md" "Add another Path"
+expect_contains "$TMP/CLAUDE.md" "Shares that appear under **Shares** above"
+expect_contains "$TMP/CLAUDE.md" "### Boot Configuration (read-only)"
 expect_not_contains "$TMP/CLAUDE.md" "Boot Configuration (not mounted)"
 
 # ── Scanner: bridge networking, custom section preserved ─────────────────────
@@ -182,6 +201,28 @@ expect_contains "$TMP/CLAUDE.md" "- plex (plexinc/pms-docker, Up 3 days)"
 expect_contains "$TMP/CLAUDE.md" "Network mode unknown"
 expect_not_contains "$TMP/CLAUDE.md" "0 data disks"
 expect_not_contains "$TMP/CLAUDE.md" "Unraid unknown"
+
+# ── Scanner: no Docker socket at all ─────────────────────────────────────────
+echo "scanner: no docker socket"
+rm -f "$TMP/CLAUDE.md"
+DOCKER_SOCK_OVERRIDE="$TMP/does-not-exist" run_generator
+expect_contains "$TMP/CLAUDE.md" "No Docker socket mounted"
+expect_contains "$TMP/CLAUDE.md" "Host shares that are not in this table"
+expect_not_contains "$TMP/CLAUDE.md" "under **Shares** above"
+expect_not_contains "$TMP/CLAUDE.md" "and the Docker socket"
+expect_contains "$TMP/CLAUDE.md" "| \`/photos\` | read-write |"
+expect_contains "$TMP/CLAUDE.md" "## Custom"
+
+# ── Scanner: unreadable mountinfo must not truncate the file ─────────────────
+echo "scanner: unreadable mountinfo"
+rm -f "$TMP/CLAUDE.md"
+MOUNTINFO="$TMP/no-such-mountinfo" PATH="$TMP/bin:$PATH" DOCKER_SOCK="$TMP/docker.sock" \
+  CLAUDE_MD_SHARE="$TMP/share" CLAUDE_MD_DEST="$TMP/CLAUDE.md" FAKE_SCAN="$TMP/scan.txt" \
+  USERSCRIPTS_SCHEDULE="$TMP/schedule.json" bash "$ROOT/generate-claude-md.sh" >/dev/null
+expect_contains "$TMP/CLAUDE.md" "Nothing from the host is mounted"
+expect_contains "$TMP/CLAUDE.md" "Boot Configuration (not mounted)"
+expect_contains "$TMP/CLAUDE.md" "### Network Mode"
+expect_contains "$TMP/CLAUDE.md" "## Custom"
 
 # ── Guard hook ───────────────────────────────────────────────────────────────
 echo "guard: blocked commands"
