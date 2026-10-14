@@ -55,7 +55,7 @@ jobs:
 
       # Build once into the local daemon and make sure the image actually runs
       # (native claude binary present, helper scripts executable).
-      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64
@@ -76,7 +76,7 @@ jobs:
           docker run --rm claude-unraid-manager:smoke bash -c 'tmux new-session -d -s main -c /workspace && tmux has-session -t "=main" && tmux send-keys -t "=main:" "true" C-m && tmux kill-server'
 
       # Unraid runs on x86-64 only, so a single platform is built.
-      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64
