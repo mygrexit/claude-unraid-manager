@@ -6,8 +6,9 @@ manages your containers, storage, VMs, plugins and configuration. It is meant
 to ask you before it acts; how much of that holds depends on you keeping the
 permission prompts on and reading them.
 
-> ⚠️ **For experienced Unraid users only.** This gives an AI model
-> root-equivalent access to your server through the Docker socket. The
+> ⚠️ **For experienced Unraid users only. Careful: this app can do serious
+> damage to your server if you don't know what you're doing.** It gives an AI
+> model root-equivalent access to your server through the Docker socket. The
 > defaults are conservative and there are guard rails, but none of them is a
 > security boundary, and you are the one approving what Claude runs. If you
 > would not be comfortable doing the same work yourself on the Unraid command
@@ -173,9 +174,11 @@ All of this lives in `~/.claude/settings.json` inside the persisted home
 directory and can be edited. It protects against mistakes, not against a
 determined adversary with socket access. The file is seeded on first start.
 When an update ships new settings, they are merged in once underneath your
-own keys (a `settings.json.bak` is kept); your values always win. To turn a
-shipped setting off, set it to the value you want rather than deleting the
-line, otherwise a later update puts the shipped default back.
+own keys (a `settings.json.bak` is kept); your values always win. New shipped
+deny entries are added to your deny list; your allow list is left exactly as
+you set it, and the start log names shipped read-only entries it lacks. To
+turn a shipped setting off, set it to the value you want rather than deleting
+the line, otherwise a later update puts the shipped default back.
 
 Switching to auto mode with `Shift+Tab` sticks to that conversation: because
 the container resumes the last conversation on start, it comes back in auto

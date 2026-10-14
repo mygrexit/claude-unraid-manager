@@ -105,8 +105,8 @@ containers, VMs and plugins. Good first prompts:
 - *Which containers are not running, and why?*
 - *How full are my pools, and what is taking the space?*
 
-Read-only commands (`docker ps`, `docker logs`, `host zpool status`, ...) run
-without asking. Anything else shows a **permission prompt** first: the exact
+Read-only commands (`docker ps`, `logs <container>`, `host zpool status`,
+...) run without asking. Anything else shows a **permission prompt** first: the exact
 command, and the choice to allow once, allow always, or deny. That prompt is
 your main safety control. Read it. The footer of the screen shows the current
 mode; it should say *manual*. `Shift+Tab` cycles modes, and *auto mode* hands
@@ -164,7 +164,9 @@ Code says so in the terminal shortly after start.
 - **Update:** Docker tab → container → **Force Update** when a new image is
   out. Your login, settings and history live in the Data folder and are kept.
   If the new image brings new default settings, they are merged in underneath
-  yours; a `settings.json.bak` is left next to the file.
+  yours (your values win; new deny entries are added; your allow list is left
+  as it is, and the start log names shipped entries it lacks); a
+  `settings.json.bak` is left next to the file.
 - **Stop/Start:** as any container. `CLAUDE.md` is rebuilt on every start; the
   last conversation is resumed.
 - **Remove:** remove the container, then delete the two appdata folders. The

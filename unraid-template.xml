@@ -12,7 +12,7 @@
   <Project>https://github.com/mygrexit/claude-unraid-manager</Project>
   <ReadMe>https://github.com/mygrexit/claude-unraid-manager#readme</ReadMe>
   <License>MIT</License>
-  <Overview>**For experienced Unraid users only.**
+  <Overview>**For experienced Unraid users only. Careful: this app can do serious damage to your server if you don't know what you're doing.**
 
 Claude Code set up as an Unraid administrator, not as a coding tool: an AI assistant that manages containers, storage, VMs, plugins and configuration from the terminal or from your phone via Remote Control. It is meant to ask before it acts; that only holds as long as you keep the permission prompts on and read them.
 
