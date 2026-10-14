@@ -423,6 +423,49 @@ for mi in "$TMP/mountinfo" "$TMP/mountinfo-boot-rw"; do
   GUARD_MOUNTINFO="$mi" expect_ask 'host unshare -m sh' "changes mounts or namespaces"
   GUARD_MOUNTINFO="$mi" expect_ask 'host /etc/rc.d/rc.nginx restart' "starts or restarts a host service"
   GUARD_MOUNTINFO="$mi" expect_ask 'host sh -c "/etc/rc.d/rc.docker restart"' "starts or restarts a host service"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host busybox mount -o remount,rw /boot' "changes mounts or namespaces"
+  # Handing the write to a host daemon: scheduler entries, SMB to the flash share.
+  GUARD_MOUNTINFO="$mi" expect_ask 'host crontab -' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host sh -c "echo \"0 3 * * * cp /tmp/go /boot/config/go\" | crontab -"' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host crontab /tmp/newcron' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host crontab -r' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host sh -c "echo cp /tmp/go /boot/config/go | at now"' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host at -f /tmp/job now + 1 minute' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host /usr/bin/at now' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host sh -c "echo cp /tmp/go /boot/config/go | at 03:00"' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host at 2pm' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host batch' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host sh -c "echo \"* * * * * root cp /tmp/x /boot/config/go\" > /etc/cron.d/x"' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host cp /tmp/job /etc/cron.hourly/job' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host tee /var/spool/cron/crontabs/root < /tmp/x' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host smbclient //localhost/flash -c "put /tmp/go config/go"' "reaches the network"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host busybox crontab -' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host bash -lc "crontab -"' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host sh -ec "echo x | at now"' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host crontab -u root /tmp/newcron' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host crontab -u root -e' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host dd if=/tmp/x of=/etc/cron.d/x' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host tar -xf /tmp/x.tar -C /etc/cron.d' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host truncate -s0 /etc/cron.d/root' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host emcmd "changeShare=apply"' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host /usr/local/sbin/emcmd cmdStatus=apply' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host sh -c "emcmd shareName=x&cmdEditShare=Apply"' "host daemon"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host bash -lc "mount -o remount,rw /boot"' "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host sh -ec "/etc/rc.d/rc.nginx restart"' "starts or restarts a host service"
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host crontab -u root -l'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'echo "the host at 10.0.0.1"'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'git commit -m "run the mover on the host at night"'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'echo "the host batch job is done"'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host sh -c "cat /etc/cron.d/root; ls /var/spool/cron/crontabs"'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host crontab -l'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host crontab -l -u root'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host cat /etc/cron.d/root'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host ls -la /etc/cron.hourly /var/spool/cron/crontabs'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host cat /boot/config/plugins/dynamix/mover.cron'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host cat /etc/fstab'                # "at" inside a word
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host sh -c "cat /proc/loadavg; date"'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host stat /mnt/user'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'grep -r "at now" /workspace'
   GUARD_MOUNTINFO="$mi" expect_allowed 'host mountpoint /boot'          # not "mount"
   GUARD_MOUNTINFO="$mi" expect_allowed 'host grep mount /var/log/syslog'
   GUARD_MOUNTINFO="$mi" expect_allowed 'host cat /etc/rc.d/rc.nginx'

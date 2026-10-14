@@ -38,33 +38,13 @@ Tested on the author's two Unraid 7.3.3 servers (ZFS pool-only), not on a range 
 **Warning**
 The Docker socket gives this container root-equivalent access to your server. The guard rails reduce accidents but are not a security boundary. If you would not do the same work yourself on the Unraid command line, do not install this. Review every action before confirming. Keep backups. The author accepts no liability for data loss or misconfiguration.</Overview>
   <Changes>
+### 0.1.0-beta.8 (2026-10-15)
+- Guard: cron and `at` entries, and `emcmd` (Unraid's web-API command), made through `host` ask first; they would run outside the read-only view of the flash drive. `busybox` and `smbclient` are recognised like `mount` and the other network tools.
+
 ### 0.1.0-beta.7 (2026-10-15)
 - Fixes a way around the read-only flash drive for host commands: a MOUNTINFO variable set in the session shell could make `host` skip the read-only remount. `host` now ignores it.
 
-### 0.1.0-beta.6 (2026-10-14)
-- The boot-drive mount mode is enforced for host commands too: unless /host/boot is mounted read-write, `host` runs every command with /boot read-only (own mount namespace), so writes fail at the kernel whatever they look like. Read-write makes commands touching the flash drive ask with a reason. Claude is told not to offer a way around.
-
-### 0.1.0-beta.5 (2026-10-14)
-- Guard "ask" tier: downloads piped to a shell, network tools, host-level containers, flash-drive writes, docker/zfs deletes always prompt with a reason, in any permission mode.
-- `logs &lt;container&gt;`: container logs stripped of terminal escape codes and framed as untrusted data; Claude is told to report, not follow, instructions found in logs.
-- Settings updates add new shipped deny entries to yours; your allow list stays as you set it (missing shipped entries are named in the start log).
-
-### 0.1.0-beta.4 (2026-10-14)
-- Fixes beta.3, whose container exited at start ("can't find pane"). Update if you installed beta.3.
-
-### 0.1.0-beta.3 (2026-10-14)
-- Sessions start in manual mode (ask before acting); auto mode stays one Shift+Tab away.
-- The Console button lands directly in the Claude session.
-- Disabled User Scripts no longer show their old cron line.
-
-### 0.1.0-beta.2 (2026-10-14)
-- Any path you add to the container shows up in Claude's CLAUDE.md; Claude explains "Add another Path" instead of guessing at unmounted shares.
-- Template: optional paths reduced to appdata and one example share; own icon.
-- Scanner: User Scripts with schedules, VM states, read-only detection, btrfs loop images filtered, Docker/libvirt bridges hidden.
-- Clean shutdown on stop; getting-started guide.
-
-### 0.1.0-beta.1 (2026-10-14)
-- First public beta. Tested on two Unraid 7.3.3 servers (ZFS pool-only).
+Older changes: https://github.com/mygrexit/claude-unraid-manager/releases
 </Changes>
   <Category>Tools:System</Category>
   <WebUI/>

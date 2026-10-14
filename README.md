@@ -116,7 +116,7 @@ cannot manage containers or run host commands, which is the entire point.
 | Mount | Default | What it enables |
 |-------|---------|----------------|
 | Docker socket | mounted (rw) | Container management, host command execution |
-| `/host/boot` | **read-only** | View Unraid config, plugins, templates. The flash drive is read-only for Claude in the container by the mount, and for `host …` commands because they run with `/boot` remounted read-only in their own mount namespace: an ordinary write fails with "Read-only file system", whatever the command. Host commands still run as root, so one that remounts or re-enters namespaces could undo that; the guard asks before those |
+| `/host/boot` | **read-only** | View Unraid config, plugins, templates. The flash drive is read-only for Claude in the container by the mount, and for `host …` commands because they run with `/boot` remounted read-only in their own mount namespace: an ordinary write fails with "Read-only file system", whatever the command. Host commands still run as root, so one that remounts or re-enters namespaces, or hands the write to a host daemon (cron, `at`, `emcmd`, SMB, the web API) or to another container that already mounts `/boot`, gets around it; the guard asks before the common forms (cron/`at`, `emcmd`, `curl`, `smbclient`), not before `docker exec` into such a container |
 | `/host/boot` (rw) | opt-in | Modify config, install plugins, edit templates; commands that touch the flash drive should ask you first, with a reason (text match, so not every spelling) |
 | `/appdata` | not mounted | Inspect other containers' configs and logs |
 | Any share | not mounted | Add it with *Add another Path* in the template (any container path outside `/root`, read-only unless Claude should change files). Claude knows which shares exist and tells you how to add one when it matters |
@@ -157,7 +157,9 @@ Three independent layers, in order of how much you should rely on them:
    downloads piped to a shell, network tools (`curl`, `wget`, `ssh`, `scp`,
    …), containers started with host-level access, commands touching the
    flash drive while it is mounted read-write (while read-only, the kernel
-   refuses writes and the guard has nothing to add), `docker rm`/`prune`,
+   refuses writes and the guard has nothing to add), remounts and namespace
+   changes, service restarts, cron/`at` entries and `emcmd` made through
+   `host` (all would run outside the read-only view), `docker rm`/`prune`,
    `zfs destroy`/`rollback`. In Manual mode you would
    have been asked anyway; the gain is the `claude-guard:` line telling you
    why to look twice. In auto mode it takes these commands away from the

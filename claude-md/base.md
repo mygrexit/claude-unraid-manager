@@ -38,7 +38,9 @@ These rules override everything else. Follow them exactly.
   or `/boot/config` while it is read-only, or a command fails that way, the
   answer is: switch "Unraid Boot Config" to Read/Write in the template and
   apply, then ask again. Do not look for another route: no remounting, no
-  `nsenter`/`unshare`, no container that mounts `/boot`.
+  `nsenter`/`unshare`, no container that mounts `/boot`, and no handing the
+  write to something that runs outside that view (a cron or `at` job,
+  `emcmd` or the Unraid web API, SMB to the flash share, another container).
 - Start or restart host services (`/etc/rc.d/rc.*`) through `host`. A service
   started that way keeps the helper's read-only view of `/boot` for as long
   as it runs. Tell the user to do it from the Unraid GUI or terminal.

@@ -89,11 +89,22 @@ done
 # a quote (`host curl …`, `sh -c "curl …"`), or by path at the start of a
 # command or right after a wrapper (`/usr/bin/curl …`, `host /usr/bin/ssh …`).
 # A path that merely ends in a tool name as an argument (`ls /boot/config/ssh`)
-# is not an invocation.
-NET='(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|telnet)'
+# is not an invocation. The host-daemon rule covers work handed to something
+# that runs outside the read-only /boot view `host` sets up: a written crontab
+# (`crontab -l`, also with `-u user`, stays silent), `at` with a time, `batch`,
+# a file placed under /etc/cron* or /var/spool/cron, and `emcmd`, which sends
+# commands to emhttpd (the Unraid web API; emhttpd writes /boot/config). `cat`
+# and `ls` of cron files stay silent; copying one out asks once.
+NET='(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|telnet|smbclient)'
 CMD_START="(^|[;&|(]|\\\$\(|${B}(host|sudo|exec|nohup|command|env)[[:space:]]+)[[:space:]]*"
 NET_CALL="([[:space:]\"']${NET}${T}|${CMD_START}(/[^[:space:]\"']*/)?${NET}${T})"
 SH='(ba|da|z)?sh'
+# Command position for the host-level rules below: start of a command or right
+# after a wrapper, optionally through `sh -c` (or `-ec`, `-lc`), by path, or
+# through busybox.
+INVOKE="${CMD_START}(${SH}[[:space:]]+-[a-z]*c[[:space:]]+)?${Q}(/[^[:space:]\"']*/)?(busybox[[:space:]]+)?"
+# Tools that write a file at a given path; shared by the flash and cron rules.
+WRITE_VERBS='(cp|mv|rsync|install|ln|tee|rm|mkdir|touch|truncate|chmod|chown|sed|tar|unzip|dd|curl|wget|cd|find|xargs)'
 # A remote rsync target: user@host:, host:/path, or rsync:/ (the normalisation
 # above has already collapsed "rsync://" to "rsync:/").
 RSYNC_REMOTE="rsync[[:space:]]+[^;&|]*(@|rsync:/|[[:space:]][^[:space:]/\"']+:[^[:space:]]*)"
@@ -108,7 +119,7 @@ DOCKER_HOSTY="(--privileged|--pid[= ]host|--net(work)?[= ]host|--ipc[= ]host|--u
 # look like. This rule only adds a reason to the prompt when the mount is
 # read-write; a false positive there costs one extra prompt. A command that
 # starts a container binding /boot is covered by the host-level-access rule.
-FLASH_TOUCH="(>>?[[:space:]]*${Q}${FLASH}|${B}(cp|mv|rsync|install|ln|tee|rm|mkdir|touch|truncate|chmod|chown|sed|tar|unzip|dd|curl|wget|cd|find|xargs)[[:space:]]+[^;&|]*${Q}${FLASH}|${B}plugin[[:space:]]+(install|remove|update)${T})"
+FLASH_TOUCH="(>>?[[:space:]]*${Q}${FLASH}|${B}${WRITE_VERBS}[[:space:]]+[^;&|]*${Q}${FLASH}|${B}plugin[[:space:]]+(install|remove|update)${T})"
 ask_rules=(
   "downloads and runs code from the network|((curl|wget)[^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?${SH}${T}|${SH}[[:space:]]+-c[[:space:]]+${Q}\\\$\((curl|wget)|<\((curl|wget))"
   "decodes and runs hidden code|base64[[:space:]]+(-d|--decode)[^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?${SH}${T}"
@@ -116,8 +127,9 @@ ask_rules=(
   "starts a container with host-level access|${B}docker[[:space:]]+(run|create)[^;&|]*${DOCKER_HOSTY}"
   "deletes container data|(${B}docker[[:space:]]+(rm|rmi|system[[:space:]]+prune|(volume|image|container|network)[[:space:]]+(rm|prune))${T}|${B}docker[[:space:]]+compose[[:space:]]+down[^;&|]*[[:space:]](-v|--volumes)${T})"
   "destroys storage snapshots or datasets|(${B}zfs[[:space:]]+(destroy|rollback)${T}|${B}btrfs[[:space:]]+subvolume[[:space:]]+delete${T})"
-  "changes mounts or namespaces (could undo the read-only boot drive)|${CMD_START}(${SH}[[:space:]]+-c[[:space:]]+)?${Q}(/[^[:space:]\"']*/)?(mount|umount|nsenter|unshare|chroot)${T}"
-  "starts or restarts a host service (it would keep the helper's read-only view of /boot)|${CMD_START}(${SH}[[:space:]]+-c[[:space:]]+)?${Q}(/etc/rc\.d/rc\.[^[:space:]]+|(/[^[:space:]\"']*/)?(service|systemctl|rc\.[[:alnum:].-]+))${T}"
+  "changes mounts or namespaces (could undo the read-only boot drive)|${INVOKE}(mount|umount|nsenter|unshare|chroot)${T}"
+  "starts or restarts a host service (it would keep the helper's read-only view of /boot)|${INVOKE}(etc/rc\.d/rc\.[^[:space:]]+|service|systemctl|rc\.[[:alnum:].-]+)${T}"
+  "hands work to a host daemon (cron, at and emhttpd run outside the read-only view of /boot)|(${INVOKE}(crontab([[:space:]]+-u[[:space:]]+[^-[:space:]][^[:space:]]*)?([[:space:]]+(-[^lu[:space:]]|-l[^[:space:]]|[^-[:space:]]|-${T})|[[:space:]]*([;&|<>)\"']|$))|at[[:space:]]+(-|now|noon|midnight|teatime|tomorrow|next|[0-9]{1,2}(:[0-9]{2}|[[:space:]]*[ap]m))|batch([[:space:]]+-|[[:space:]]*([;&|<>)\"']|$))|emcmd${T})|(>>?[[:space:]]*|${B}${WRITE_VERBS}[[:space:]]+[^;&|]*)${Q}/(etc/cron|var/spool/cron))"
 )
 
 for rule in "${ask_rules[@]}"; do
