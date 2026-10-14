@@ -288,21 +288,38 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
   fi
 
   # ── Mount analysis ──────────────────────────────────────────────────────────
-  # Only bind mounts count: /media exists in the base image on its own.
-  is_mounted() { awk -v d="$1" '$5 == d { found = 1 } END { exit !found }' "${MOUNTINFO:-/proc/self/mountinfo}"; }
+  # Every bind mount the user added in the template is listed, whatever the
+  # container path is called. System mounts and the container's own data
+  # paths are left out. Access comes from the mount options, not from -w.
+  MOUNTINFO="${MOUNTINFO:-/proc/self/mountinfo}"
+  is_mounted() { awk -v d="$1" '$5 == d { found = 1 } END { exit !found }' "$MOUNTINFO"; }
+  user_mounts() {
+    awk '{
+      mp = $5; opts = $6
+      if (mp == "/" || mp ~ "^/(proc|sys|dev|run)(/|$)" || mp ~ "^/etc/(hosts|hostname|resolv\\.conf)$" ||
+          mp == "/root" || mp ~ "^/root/" || mp == "/workspace" || mp ~ "docker\\.sock$") next
+      print mp, (opts ~ /(^|,)ro(,|$)/ ? "read-only" : "read-write")
+    }' "$MOUNTINFO" | sort -u
+  }
   echo "### Available Paths"
   echo ""
-  echo "| Path | Access | Contents |"
-  echo "|------|--------|----------|"
-  for d in /host/boot /appdata /media /downloads /user /vms /backup; do
-    if is_mounted "$d"; then
-      if [ -w "$d" ]; then mode="read-write"; else mode="read-only"; fi
-      items=$( (find "$d" -mindepth 1 -maxdepth 1 2>/dev/null || true) | wc -l)
-      echo "| \`$d\` | $mode | $items entries |"
-    fi
-  done
+  MOUNTS=$(user_mounts)
+  if [ -n "$MOUNTS" ]; then
+    echo "| Path | Access | Contents |"
+    echo "|------|--------|----------|"
+    while read -r mp mode; do
+      items=$( (find "$mp" -mindepth 1 -maxdepth 1 2>/dev/null || true) | wc -l)
+      echo "| \`$mp\` | $mode | $items entries |"
+    done <<< "$MOUNTS"
+  else
+    echo "Nothing from the host is mounted besides this container's own data and the Docker socket."
+  fi
   echo ""
-  echo "Paths not listed above are not mounted. The user can add them in the Docker template."
+  echo "Shares that appear under **Shares** above but not in this table are not mounted; you cannot read them."
+  echo "If the user wants you to work with one, do not guess at its contents. Tell them how to add it:"
+  echo "Docker tab → this container → Edit → *Add another Path* → Host path \`/mnt/user/<share>\`,"
+  echo "Container path \`/<share>\` (any name), Access Mode read-only unless you must change files → Apply."
+  echo "The container restarts and the path shows up in this table."
 
   # ── Boot access ────────────────────────────────────────────────────────────
   echo ""

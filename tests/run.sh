@@ -75,12 +75,23 @@ cat > "$TMP/schedule.json" <<'EOF'
 }
 EOF
 
-# Fake mountinfo: only /host/boot is a bind mount; /media must stay unlisted
-# even though the directory exists in the base image.
+# Fake mountinfo as Docker produces it: system mounts, the container's own
+# data paths, the Docker socket, the read-only boot drive and one share the
+# user added under a name of their choosing. /media exists in the base image
+# but is not mounted and must stay unlisted.
 cat > "$TMP/mountinfo" <<'EOF'
 100 90 0:50 / / rw,relatime - overlay overlay rw
-101 100 8:1 /boot /host/boot ro,relatime - vfat /dev/sda1 ro
-102 100 0:5 / /proc rw,nosuid - proc proc rw
+101 100 0:5 / /proc rw,nosuid - proc proc rw
+102 100 0:6 / /dev rw,nosuid - tmpfs tmpfs rw
+103 100 0:7 / /sys ro,nosuid - sysfs sysfs ro
+104 100 0:60 /containers/abc/hostname /etc/hostname rw,relatime - xfs /dev/sdb1 rw
+105 100 0:60 /containers/abc/hosts /etc/hosts rw,relatime - xfs /dev/sdb1 rw
+106 100 0:60 /containers/abc/resolv.conf /etc/resolv.conf rw,relatime - xfs /dev/sdb1 rw
+107 100 0:61 /appdata/claude-unraid-manager/home /root rw,relatime - fuse.shfs shfs rw
+108 100 0:61 /appdata/claude-unraid-manager/workspace /workspace rw,relatime - fuse.shfs shfs rw
+109 100 0:21 /docker.sock /var/run/docker.sock rw,nosuid - tmpfs tmpfs rw
+110 100 8:1 /boot /host/boot ro,relatime - vfat /dev/sda1 ro
+111 100 0:61 /Fotos /photos rw,relatime - fuse.shfs shfs rw
 EOF
 
 run_generator() {
@@ -132,6 +143,12 @@ for junk in veth1a2b3c vnet0 shim-br0 tunl0 docker0 br-79c60d7ee5a9 virbr0; do
   expect_not_contains "$TMP/CLAUDE.md" "$junk"
 done
 expect_not_contains "$TMP/CLAUDE.md" "| \`/media\` |"
+expect_contains "$TMP/CLAUDE.md" "| \`/host/boot\` | read-only |"
+expect_contains "$TMP/CLAUDE.md" "| \`/photos\` | read-write |"
+for sys in /root /workspace /etc/hosts /proc /var/run/docker.sock; do
+  expect_not_contains "$TMP/CLAUDE.md" "| \`$sys\` |"
+done
+expect_contains "$TMP/CLAUDE.md" "Add another Path"
 expect_not_contains "$TMP/CLAUDE.md" "Boot Configuration (not mounted)"
 
 # ── Scanner: bridge networking, custom section preserved ─────────────────────

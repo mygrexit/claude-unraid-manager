@@ -131,7 +131,13 @@ that: Docker tab → container → **Edit**:
   before writing.
 - **Container App Data** (advanced view) → set to `/mnt/user/appdata` (or
   your path) read-only, so Claude can inspect other containers' configs.
-- Media, Downloads, VMs → only if you want Claude working on those files.
+- **Any share** → *Add another Path* at the bottom of the edit page: Host path
+  `/mnt/user/<share>`, Container path `/<share>` (any name you like), Access
+  Mode read-only unless Claude should change files. The template's "Example:
+  a share for Claude" entry is the same thing with `/media` pre-filled as the
+  container path. You do not have to plan this ahead: Claude sees the names of
+  all your shares and will tell you these steps when a question needs one of
+  them.
 
 **Apply** restarts the container; `CLAUDE.md` is regenerated and now lists
 the new paths. Your own notes under `## Custom` at the end of `CLAUDE.md`

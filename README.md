@@ -125,11 +125,11 @@ cannot manage containers or run host commands, which is the entire point.
 | Docker socket | mounted (rw) | Container management, host command execution |
 | `/host/boot` | **read-only** | View Unraid config, plugins, templates |
 | `/host/boot` (rw) | opt-in | Modify config, install plugins, edit templates |
-| `/appdata` | not mounted | Inspect container app data |
-| Other shares | not mounted | Access to media, downloads, personal files |
+| `/appdata` | not mounted | Inspect other containers' configs and logs |
+| Any share | not mounted | Add it with *Add another Path* in the template (any container path, read-only unless Claude should change files). Claude knows which shares exist and tells you how to add one when it matters |
 | Host networking | off (bridge) | Only needed if something must reach this container directly; outbound SSH to VMs and LAN hosts works in bridge mode |
 
-Every optional mount has a description in the Docker template explaining what it does.
+Every bind mount you add shows up in Claude's `CLAUDE.md` with its access mode after the next start.
 
 ### Defense in Depth
 

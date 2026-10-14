@@ -52,6 +52,20 @@ is bind-mounted. The available paths are listed in the "Detected Environment"
 section below. That section is a snapshot taken at container start; use live
 commands (`docker ps`, `host zpool status`) for the current state.
 
+### Shares you cannot see
+
+The "Shares" list below names every share on the host; the "Available Paths"
+table shows which ones are actually mounted here. Anything not in that table
+is invisible to you, and `host ls /mnt/user/<share>` is not a substitute for
+real access (it works for a quick look, not for working with files).
+
+When the user asks about files in a share that is not mounted, say so and give
+the exact steps instead of guessing: Docker tab → this container → Edit →
+*Add another Path* → Host path `/mnt/user/<share>`, Container path `/<share>`,
+Access Mode read-only unless you must change files → Apply. The container
+restarts and the share appears in "Available Paths". Mentioning this once at
+the start of a conversation, when it is obviously relevant, is fine.
+
 ### Running commands on the host
 
 For host-level commands (`zpool`, `zfs`, `btrfs`, `virsh`, `mdcmd`, `plugin`,
