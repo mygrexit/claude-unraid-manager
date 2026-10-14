@@ -88,7 +88,10 @@ On the very first start Claude Code shows its setup:
 5. `Login successful` → `Enter`.
 6. If Claude Code asks whether to make **auto mode** its default, say no:
    this container is set up to ask you before it acts (Manual mode), and auto
-   mode stays one `Shift+Tab` away if you ever want it for a session.
+   mode stays one `Shift+Tab` away if you ever want it for a session. Note
+   that a conversation switched to auto mode comes back in auto mode after a
+   container restart, since the last conversation is resumed; switch back or
+   start a fresh one with `/clear`.
 
 The login is stored in the **Data** folder and survives restarts and image
 updates. You will not be asked again.

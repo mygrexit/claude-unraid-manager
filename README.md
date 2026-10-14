@@ -166,10 +166,16 @@ Three independent layers, in order of how much you should rely on them:
 
 All of this lives in `~/.claude/settings.json` inside the persisted home
 directory and can be edited. It protects against mistakes, not against a
-determined adversary with socket access. The file is seeded on first start;
-on later starts, an existing file that predates the guard hook gets the
-shipped defaults merged in underneath its own keys (a `settings.json.bak` is
-kept).
+determined adversary with socket access. The file is seeded on first start.
+When an update ships new settings, they are merged in once underneath your
+own keys (a `settings.json.bak` is kept); your values always win. To turn a
+shipped setting off, set it to the value you want rather than deleting the
+line, otherwise a later update puts the shipped default back.
+
+Switching to auto mode with `Shift+Tab` sticks to that conversation: because
+the container resumes the last conversation on start, it comes back in auto
+mode after a restart until you switch back or start a fresh conversation
+(`/clear`).
 
 ## Attaching to the Session
 
