@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "default",
     "disableBypassPermissionsMode": "disable",
     "allow": [
       "Bash(docker ps *)",

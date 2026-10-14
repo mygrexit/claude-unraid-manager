@@ -8,21 +8,23 @@ export HOST_HELPER_IMAGE="${HOST_HELPER_IMAGE:-alpine:3.21}"
 
 # ── Seed dotfiles into the persisted home on first run ───────────────────────
 [ -f /root/.tmux.conf ] || cp /usr/local/share/claude-unraid-manager/tmux.conf /root/.tmux.conf
+# .bashrc makes interactive shells (Console button) attach to the Claude session.
+[ -f /root/.bashrc ] || cp /usr/local/share/claude-unraid-manager/bashrc /root/.bashrc
 
-# Seed default settings (read-only allow list, deny list, guard hook).
-# First run: copy. Later runs: keep the user's file, but if it predates the
-# guard hook, merge the shipped defaults underneath it (user keys win) so an
-# upgraded install is not left without the hook.
+# Seed default settings (manual permission mode, read-only allow list, deny
+# list, guard hook). First run: copy. Later runs: keep the user's file, but if
+# it predates the guard hook or the default permission mode, merge the shipped
+# defaults underneath it (user keys win) so an upgraded install gets them.
 SETTINGS_DEFAULT=/usr/local/share/claude-unraid-manager/settings.json
 SETTINGS=/root/.claude/settings.json
 mkdir -p /root/.claude
 if [ ! -f "$SETTINGS" ]; then
   cp "$SETTINGS_DEFAULT" "$SETTINGS"
-elif ! grep -q claude-guard "$SETTINGS"; then
+elif ! grep -q claude-guard "$SETTINGS" || ! grep -q defaultMode "$SETTINGS"; then
   if claude-settings-merge "$SETTINGS_DEFAULT" "$SETTINGS" > "$SETTINGS.merged" 2>/dev/null; then
     cp "$SETTINGS" "$SETTINGS.bak"
     mv "$SETTINGS.merged" "$SETTINGS"
-    echo "settings.json: merged in the guard hook and default permissions (backup: settings.json.bak)."
+    echo "settings.json: merged in the shipped defaults (guard hook, permission mode) underneath your settings (backup: settings.json.bak)."
   else
     rm -f "$SETTINGS.merged"
     echo "Warning: settings.json is not valid JSON; guard hook not installed."

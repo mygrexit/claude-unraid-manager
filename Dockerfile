@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Ship the base CLAUDE.md, snippets, generator and helpers inside the image.
 COPY claude-md/            /usr/local/share/claude-unraid-manager/claude-md/
 COPY tmux.conf             /usr/local/share/claude-unraid-manager/tmux.conf
+COPY bashrc                /usr/local/share/claude-unraid-manager/bashrc
 COPY settings.json         /usr/local/share/claude-unraid-manager/settings.json
 COPY entrypoint.sh generate-claude-md.sh host claude-guard claude-session claude-settings-merge /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/generate-claude-md.sh \

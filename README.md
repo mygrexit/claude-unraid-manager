@@ -68,25 +68,17 @@ to investigate and, ideally after you confirm, to fix things.
 Step by step, including console, login and phone:
 **[docs/getting-started.md](docs/getting-started.md)**. The short version:
 
-Not in Community Applications yet. The beta image is published at
-`ghcr.io/mygrexit/claude-unraid-manager:beta`, which is what the template
-points to. Install the template by hand:
+1. Unraid web UI → **Apps** → search for *claude-unraid-manager* → **Install**
+   (it is marked as beta).
+2. Review the mounts (boot drive read-only, no shares by default) and apply.
+   The two appdata paths default to `/mnt/user/appdata/…` like every Unraid
+   template; if your appdata lives elsewhere (for example
+   `/mnt/cache/appdata`), change them here: touching a path under `/mnt/user`
+   that does not exist makes Unraid create a new share there.
+3. Docker tab → click the container → **Console** and complete the login once
+   (see [Attaching to the Session](#attaching-to-the-session)).
 
-```bash
-# On the Unraid terminal
-curl -fsSL https://raw.githubusercontent.com/mygrexit/claude-unraid-manager/main/unraid-template.xml \
-  -o /boot/config/plugins/dockerMan/templates-user/my-claude-unraid-manager.xml
-```
-
-Then in the Unraid web UI open **Docker → Add Container**, pick
-`claude-unraid-manager` from the template dropdown, review the mounts (boot
-drive read-only, no shares by default), apply, and attach to the session (see
-below) to log in.
-
-The template's two appdata mounts default to `/mnt/user/appdata/…` like every
-Unraid template. If your appdata lives elsewhere (for example
-`/mnt/cache/appdata`), change them when adding the container: touching a path
-under `/mnt/user` that does not exist makes Unraid create a new share there.
+The image is `ghcr.io/mygrexit/claude-unraid-manager:beta`.
 
 To build the image yourself instead, see
 [Building and Testing Locally](#building-and-testing-locally).
@@ -99,7 +91,7 @@ On every start, a discovery script scans the host and generates a `CLAUDE.md` in
 - System info (Unraid version, CPU, RAM)
 - Storage topology (pools, datasets, array state, shares, encrypted datasets)
 - Running containers and their status
-- VMs, plugins, User Scripts (name and description), host network interfaces
+- VMs with their state, plugins, User Scripts (name, description, schedule), host network interfaces
 - Which paths are mounted and whether they're read-only or read-write
 - Whether the container runs in host or bridge networking, and what that means
 
@@ -135,15 +127,16 @@ Every bind mount you add shows up in Claude's `CLAUDE.md` with its access mode a
 
 Three independent layers, in order of how much you should rely on them:
 
-1. **Permission prompts** (interactive) — Claude Code asks before every shell
-   command and file write by default. A small allow list in the shipped
-   `settings.json` lets read-only commands (`docker ps`, `docker logs`,
+1. **Permission prompts** (interactive) — the shipped `settings.json` starts
+   every session in Manual mode (`defaultMode: default`), so Claude Code asks
+   before shell commands and file writes. This matters because Claude Code
+   itself now starts in auto mode by default, where a classifier approves
+   actions instead of you; on a root-equivalent container that is your call,
+   not a default, so it is one Shift+Tab away rather than on. A small allow
+   list lets read-only commands (`docker ps`, `docker logs`,
    `host zpool status`, …) run without a prompt so the prompts you do see are
-   the ones that matter. Accept-edits mode auto-approves file edits only; shell
-   commands still prompt. `--dangerously-skip-permissions` is disabled in the
-   shipped settings (`disableBypassPermissionsMode`). Auto mode, where a
-   classifier approves actions instead of you, is left available; whether to
-   use it on a root-equivalent container is your call.
+   the ones that matter. `--dangerously-skip-permissions` is disabled
+   (`disableBypassPermissionsMode`).
 
 2. **Guard hook** (hard block for a short list) — `claude-guard` is a
    `PreToolUse` hook that inspects the *entire* command string before it runs
@@ -180,22 +173,24 @@ kept).
 
 ## Attaching to the Session
 
-```bash
-# From the Unraid terminal
-docker exec -it claude-unraid-manager tmux attach -t main
+Three ways in, all ending in the same terminal:
 
-# Or add this shortcut to /boot/config/go:
-cat > /usr/local/bin/claude << 'EOF'
-#!/bin/bash
-docker exec -it claude-unraid-manager tmux attach -t main
-EOF
-chmod +x /usr/local/bin/claude
-```
+1. **Unraid web UI:** Docker tab → click the container → **Console**. The
+   shell that opens attaches to the Claude session by itself.
+2. **SSH from your computer**, one line (worth an alias):
+   ```bash
+   ssh -t root@<unraid-ip> docker exec -it claude-unraid-manager bash
+   ```
+3. **Phone or browser:** Remote Control, see below.
+
+`Ctrl-b` then `d` detaches and leaves Claude running; closing the window does
+the same. From the detached shell, `tmux attach -t main` goes back in.
 
 On first start, attach and complete the login (claude.ai subscription or
 Console account). Inside a container the browser cannot open on its own:
 press `c` to copy the login URL, open it on any device, and paste the code it
-shows back into the terminal when asked.
+shows back into the terminal when asked. Claude Code then asks once whether
+to switch its default to auto mode; answer no to keep the permission prompts.
 
 If Claude exits for any reason, it restarts after 5 seconds; press Ctrl-C
 during that pause to get a shell instead. If it keeps exiting right away, the

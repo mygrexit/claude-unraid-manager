@@ -71,7 +71,7 @@ EOF
 cat > "$TMP/schedule.json" <<'EOF'
 {
   "/boot/config/plugins/user.scripts/scripts/zfs-snapshot/script": { "frequency": "custom", "custom": "0 3 * * *", "id": "1" },
-  "/boot/config/plugins/user.scripts/scripts/cleanup-tmp/script": { "frequency": "disabled", "id": "2" }
+  "/boot/config/plugins/user.scripts/scripts/cleanup-tmp/script": { "frequency": "disabled", "custom": "0 4 * * *", "id": "2" }
 }
 EOF
 
@@ -135,6 +135,7 @@ expect_not_contains "$TMP/CLAUDE.md" "/dev/sdc1"
 expect_contains "$TMP/CLAUDE.md" "- unassigned.devices"
 expect_contains "$TMP/CLAUDE.md" "- ZFS Snapshot — Daily snapshots of tank/media [custom 0 3 * * *]"
 expect_contains "$TMP/CLAUDE.md" "- cleanup-tmp [disabled]"
+expect_not_contains "$TMP/CLAUDE.md" "[disabled 0 4"
 expect_contains "$TMP/CLAUDE.md" "- Lock Dataset"
 expect_not_contains "$TMP/CLAUDE.md" "- Lock Dataset —"
 expect_contains "$TMP/CLAUDE.md" "- plex (plexinc/pms-docker, Up 3 days)"
@@ -354,6 +355,16 @@ EOF
 merge "$TMP/own-hook.json" > "$TMP/merged2.json"
 if has_guard "$TMP/merged2.json"; then pass "guard appended next to user hook"; else fail "guard missing with user hook"; fi
 if jq -e '[.hooks.PreToolUse[].hooks[].command] | index("/usr/local/bin/notify") != null' "$TMP/merged2.json" >/dev/null; then pass "user hook kept"; else fail "user hook lost"; fi
+
+# An install from beta.1/beta.2 has the guard but no defaultMode: the merge adds it.
+cat > "$TMP/beta2.json" <<'EOF'
+{ "permissions": { "allow": ["Bash(docker ps *)"], "disableBypassPermissionsMode": "disable" },
+  "hooks": { "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "/usr/local/bin/claude-guard" } ] } ] } }
+EOF
+merge "$TMP/beta2.json" > "$TMP/merged4.json"
+if jq -e '.permissions.defaultMode == "default"' "$TMP/merged4.json" >/dev/null; then pass "defaultMode added to older install"; else fail "defaultMode missing after merge"; fi
+if jq -e '.permissions.allow == ["Bash(docker ps *)"]' "$TMP/merged4.json" >/dev/null; then pass "user allow list kept over shipped one"; else fail "user allow list replaced"; fi
+if [ "$(jq '[.hooks.PreToolUse[].hooks[].command] | map(select(. == "/usr/local/bin/claude-guard")) | length' "$TMP/merged4.json")" = 1 ]; then pass "guard not duplicated"; else fail "guard duplicated"; fi
 
 # Idempotent: merging the output again changes nothing.
 merge "$TMP/merged2.json" > "$TMP/merged3.json"

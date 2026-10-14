@@ -19,22 +19,13 @@ versions and setups should behave the same, but have not been watched doing so.
 - The willingness to read what Claude proposes before you approve it. If you
   would not do the same work yourself on the command line, stop here.
 
-## 2. Install the template
+## 2. Install from Community Applications
 
-Not in Community Applications yet, so the template is installed by hand. On
-the Unraid terminal (web UI → Terminal icon top right, or SSH):
+Web UI → **Apps** → search for *claude-unraid-manager* → **Install**. It is
+marked as beta. Unraid stores the template on the flash drive, as it does for
+every container; nothing else is written there.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/mygrexit/claude-unraid-manager/main/unraid-template.xml \
-  -o /boot/config/plugins/dockerMan/templates-user/my-claude-unraid-manager.xml
-```
-
-This is the only thing that ever gets written to your flash drive.
-
-## 3. Add the container
-
-Web UI → **Docker** → **Add Container** → open the **Template** dropdown and
-pick `claude-unraid-manager` under *User templates*.
+## 3. Fill in the template
 
 Settings worth a look; leave everything else at its default:
 
@@ -63,23 +54,22 @@ Claude Unraid Manager is running.
 
 ## 4. Open the session
 
-Claude runs inside a `tmux` session in the container. Two ways in:
+Claude runs inside a `tmux` session in the container. Any interactive shell
+in the container attaches to it automatically, so:
 
-- **From the web UI:** Docker tab → click the container icon → **Console**. A
-  shell inside the container opens. Type:
+- **From the web UI:** Docker tab → click the container icon → **Console**.
+  You are in the Claude session.
+- **From your computer over SSH**, one line:
   ```
-  tmux attach -t main
+  ssh -t root@<unraid-ip> docker exec -it claude-unraid-manager bash
   ```
-- **From the Unraid terminal or SSH:**
-  ```
-  docker exec -it claude-unraid-manager tmux attach -t main
-  ```
-
-Either way you now see Claude Code's screen.
+  Put it in an alias (`alias unraid-claude='ssh -t root@... docker exec -it claude-unraid-manager bash'`)
+  and it is one word away. Works over Tailscale too.
 
 **Leaving the session without stopping Claude:** press `Ctrl-b`, release, then
-`d`. That detaches; Claude keeps running and you can attach again any time.
-Simply closing the console window has the same effect. Do not type `/exit`
+`d`. That detaches; Claude keeps running, and you land in a plain shell that
+tells you how to get back (`tmux attach -t main`) or leave (`exit`). Simply
+closing the console window has the same effect. Do not type `/exit` in Claude
 unless you mean it; Claude would quit and the wrapper restarts it a few
 seconds later.
 
@@ -96,12 +86,12 @@ On the very first start Claude Code shows its setup:
 4. The browser shows a **code**. Paste it into the terminal where it says
    *Paste code here if prompted*, then `Enter`.
 5. `Login successful` → `Enter`.
+6. Claude Code asks once whether to make **auto mode** its default. Say no:
+   this container is set up to ask you before it acts (Manual mode), and auto
+   mode stays one `Shift+Tab` away if you ever want it for a session.
 
 The login is stored in the **Data** folder and survives restarts and image
 updates. You will not be asked again.
-
-Team or Enterprise plan: an organization owner must enable Remote Control in
-the Claude Code admin settings before step 8 works.
 
 ## 6. First questions
 
@@ -115,7 +105,9 @@ containers, VMs and plugins. Good first prompts:
 Read-only commands (`docker ps`, `docker logs`, `host zpool status`, ...) run
 without asking. Anything else shows a **permission prompt** first: the exact
 command, and the choice to allow once, allow always, or deny. That prompt is
-your main safety control. Read it.
+your main safety control. Read it. The footer of the screen shows the current
+mode; it should say *manual*. `Shift+Tab` cycles modes, and *auto mode* hands
+those decisions to a classifier instead of you.
 
 A few commands (formatting disks, `rm -rf` on a share root, writing to a block
 device) are blocked by a guard hook even if you say yes; if you really want one
@@ -168,7 +160,7 @@ Code says so in the terminal shortly after start.
 - **Stop/Start:** as any container. `CLAUDE.md` is rebuilt on every start; the
   last conversation is resumed.
 - **Remove:** remove the container, then delete the two appdata folders. The
-  flash drive only holds the template file from step 2.
+  flash drive only holds the template Unraid saved when you installed it.
 
 ## 10. If something looks wrong
 

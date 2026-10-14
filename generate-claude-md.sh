@@ -246,9 +246,12 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
         SCHEDULE="${USERSCRIPTS_SCHEDULE:-/host/boot/config/plugins/user.scripts/schedule.json}"
         schedule_for() {
           [ -r "$SCHEDULE" ] || return 0
+          # A disabled script keeps its old cron line in schedule.json; show only "disabled".
           jq -r --arg f "$1" '
             to_entries[] | select(.key | contains("/scripts/" + $f + "/"))
-            | .value | (.frequency // "") + (if (.custom // "") != "" then " " + .custom else "" end)
+            | .value
+            | if .frequency == "disabled" then "disabled"
+              else (.frequency // "") + (if (.custom // "") != "" then " " + .custom else "" end) end
           ' "$SCHEDULE" 2>/dev/null | head -1
         }
         while IFS= read -r entry; do

@@ -26,8 +26,9 @@ An Anthropic account: a claude.ai subscription (also needed for Remote Control) 
 
 **Setup**
 1. Apply this template with the default mounts (adjust the two appdata paths if yours is not /mnt/user/appdata).
-2. Open the container's Console in the Docker tab and run: tmux attach -t main
-3. Follow the one-time login (URL in any browser, paste the code back). Leave with Ctrl-b, then d.
+2. Click the container in the Docker tab, then Console: you are in the Claude session.
+3. Log in once (URL in any browser, paste the code back). Leave the session with Ctrl-b, then d; it keeps running.
+4. Phone: open the Claude app, tap Code, pick this session. Sessions start in manual mode and ask before acting.
 Full walkthrough: https://github.com/mygrexit/claude-unraid-manager/blob/main/docs/getting-started.md
 
 **Beta**
@@ -36,6 +37,17 @@ Tested on the author's two Unraid 7.3.3 servers (ZFS pool-only), not on a range 
 **Warning**
 The Docker socket gives this container root-equivalent access to your server. The guard rails reduce accidents but are not a security boundary. If you would not do the same work yourself on the Unraid command line, do not install this. Review every action before confirming. Keep backups. The author accepts no liability for data loss or misconfiguration.</Overview>
   <Changes>
+### 0.1.0-beta.3 (2026-10-14)
+- Sessions start in manual mode (ask before acting); auto mode stays one Shift+Tab away.
+- The Console button lands directly in the Claude session.
+- Disabled User Scripts no longer show their old cron line.
+
+### 0.1.0-beta.2 (2026-10-14)
+- Any path you add to the container shows up in Claude's CLAUDE.md; Claude explains "Add another Path" instead of guessing at unmounted shares.
+- Template: optional paths reduced to appdata and one example share; own icon.
+- Scanner: User Scripts with schedules, VM states, read-only detection, btrfs loop images filtered, Docker/libvirt bridges hidden.
+- Clean shutdown on stop; getting-started guide.
+
 ### 0.1.0-beta.1 (2026-10-14)
 - First public beta. Tested on two Unraid 7.3.3 servers (ZFS pool-only).
 </Changes>
