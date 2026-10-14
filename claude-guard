@@ -49,8 +49,10 @@ NS='[^/[:space:]"'"'"']+'
 ROOTS="(/|/mnt|/mnt/${NS}|/mnt/${NS}/appdata|/boot|/host/boot|/appdata)/*(\*/*)?"
 # Any path under /mnt that climbs with "..": resolves to something above.
 DOTDOT='/mnt[^[:space:]"'"'"']*/\.\.'
-# Any number of preceding arguments (options or other paths).
-ARGS='([^[:space:]]+[[:space:]]+)*'
+# Any number of preceding arguments (options, paths, redirections such as
+# 2>&1 or >/dev/null) within the same command segment: never across ";",
+# "&&", "||" or "|".
+ARGS='(([0-9]*>&[0-9]+|[0-9]*>>?[^[:space:];&|]+|[0-9]*<[^[:space:];&|]+|[^[:space:];&|]+)[[:space:]]+)*'
 # Block devices that must never be written to (/dev/null and /dev/zero stay allowed).
 BLOCKDEV='/dev/(sd|hd|vd|xvd|nvme|md|mmcblk|nbd|loop|sr|zd|dm-|mapper/|disk/)'
 
@@ -89,22 +91,33 @@ done
 # A path that merely ends in a tool name as an argument (`ls /boot/config/ssh`)
 # is not an invocation.
 NET='(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|telnet)'
-CMD_START="(^|[;&|(]|\\\$\(|${B}(host|sudo|exec|nohup|command)[[:space:]]+)[[:space:]]*"
+CMD_START="(^|[;&|(]|\\\$\(|${B}(host|sudo|exec|nohup|command|env)[[:space:]]+)[[:space:]]*"
 NET_CALL="([[:space:]\"']${NET}${T}|${CMD_START}(/[^[:space:]\"']*/)?${NET}${T})"
 SH='(ba|da|z)?sh'
 # A remote rsync target: user@host:, host:/path, or rsync:/ (the normalisation
 # above has already collapsed "rsync://" to "rsync:/").
 RSYNC_REMOTE="rsync[[:space:]]+[^;&|]*(@|rsync:/|[[:space:]][^[:space:]/\"']+:[^[:space:]]*)"
-FLASH='/(host/)?boot(/|$)'
-DOCKER_HOSTY='(--privileged|--pid[= ]host|--net(work)?[= ]host|--ipc[= ]host|--userns[= ]host|--cap-add|--security-opt|(-v|--volume)[[:space:]]*/:|--mount[[:space:]]*[^[:space:]]*(source|src)=/,|docker\.sock)'
+# The flash drive as a path operand: /boot or /host/boot, followed by "/" or
+# the end of an argument.
+FLASH="/(host/)?boot(/|${T})"
+DOCKER_HOSTY="(--privileged|--pid[= ]host|--net(work)?[= ]host|--ipc[= ]host|--userns[= ]host|--cap-add|--security-opt|(-v|--volume)([[:space:]]*|=)[\"']?/(:|boot[:/])|--mount[[:space:]]*[^[:space:]]*(source|src)=/(,|boot([,/\"'[:space:]]|$))|docker\.sock)"
+# The flash drive is enforced by the kernel, not by this text match: unless
+# /host/boot is mounted read-write, the container sees it read-only and the
+# `host` wrapper runs commands with /boot remounted read-only in a private
+# mount namespace, so writes fail with "Read-only file system" whatever they
+# look like. This rule only adds a reason to the prompt when the mount is
+# read-write; a false positive there costs one extra prompt. A command that
+# starts a container binding /boot is covered by the host-level-access rule.
+FLASH_TOUCH="(>>?[[:space:]]*${Q}${FLASH}|${B}(cp|mv|rsync|install|ln|tee|rm|mkdir|touch|truncate|chmod|chown|sed|tar|unzip|dd|curl|wget|cd|find|xargs)[[:space:]]+[^;&|]*${Q}${FLASH}|${B}plugin[[:space:]]+(install|remove|update)${T})"
 ask_rules=(
   "downloads and runs code from the network|((curl|wget)[^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?${SH}${T}|${SH}[[:space:]]+-c[[:space:]]+${Q}\\\$\((curl|wget)|<\((curl|wget))"
   "decodes and runs hidden code|base64[[:space:]]+(-d|--decode)[^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?${SH}${T}"
   "reaches the network (possible data exfiltration)|(${NET_CALL}|${B}${RSYNC_REMOTE})"
   "starts a container with host-level access|${B}docker[[:space:]]+(run|create)[^;&|]*${DOCKER_HOSTY}"
-  "writes to the Unraid flash drive|(>>?[[:space:]]*${Q}${FLASH}|${B}(cp|mv|tee|install|rsync|sed|rm|mkdir|touch|truncate|chmod|chown|ln)[[:space:]]+${ARGS}${Q}${FLASH}|${B}dd[[:space:]]+${ARGS}of=${Q}${FLASH}|${B}plugin[[:space:]]+(install|remove|update)${T})"
   "deletes container data|(${B}docker[[:space:]]+(rm|rmi|system[[:space:]]+prune|(volume|image|container|network)[[:space:]]+(rm|prune))${T}|${B}docker[[:space:]]+compose[[:space:]]+down[^;&|]*[[:space:]](-v|--volumes)${T})"
   "destroys storage snapshots or datasets|(${B}zfs[[:space:]]+(destroy|rollback)${T}|${B}btrfs[[:space:]]+subvolume[[:space:]]+delete${T})"
+  "changes mounts or namespaces (could undo the read-only boot drive)|${CMD_START}(${SH}[[:space:]]+-c[[:space:]]+)?${Q}(/[^[:space:]\"']*/)?(mount|umount|nsenter|unshare|chroot)${T}"
+  "starts or restarts a host service (it would keep the helper's read-only view of /boot)|${CMD_START}(${SH}[[:space:]]+-c[[:space:]]+)?${Q}(/etc/rc\.d/rc\.[^[:space:]]+|(/[^[:space:]\"']*/)?(service|systemctl|rc\.[[:alnum:].-]+))${T}"
 )
 
 for rule in "${ask_rules[@]}"; do
@@ -116,5 +129,13 @@ for rule in "${ask_rules[@]}"; do
     exit 0
   fi
 done
+
+# Last, so that a more specific reason (network, deletion) wins over this one.
+# The mount check runs only for commands that mention the flash drive.
+if printf '%s\n' "$norm" | grep -Eq -- "$FLASH_TOUCH" && [ "$("$(dirname "$0")/boot-mode")" = "rw" ]; then
+  jq -cn --arg reason "claude-guard: touches the Unraid flash drive, which is mounted read-write. Review this command before approving." \
+    '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $reason}}'
+  exit 0
+fi
 
 exit 0

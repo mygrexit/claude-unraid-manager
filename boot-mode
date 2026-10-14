@@ -1,0 +1,14 @@
+#!/bin/bash
+# boot-mode — how the Unraid flash drive is mounted in this container.
+#
+# Prints one word: rw (read-write bind on a read-write filesystem), ro
+# (read-only bind or read-only filesystem), none (not mounted), or unknown
+# (mountinfo unreadable). Used by `host` and `claude-guard`; MOUNTINFO
+# overrides the source for tests.
+set -u
+mi="${MOUNTINFO:-/proc/self/mountinfo}"
+[ -r "$mi" ] || { echo unknown; exit 0; }
+awk -v ro='(^|,)ro(,|$)' '
+  $5 == "/host/boot" { m = ($6 ~ ro || $NF ~ ro) ? "ro" : "rw" }
+  END { print (m == "" ? "none" : m) }
+' "$mi" 2>/dev/null || echo unknown

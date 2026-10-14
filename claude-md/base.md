@@ -30,6 +30,18 @@ These rules override everything else. Follow them exactly.
   A guard hook blocks these whichever wrapper is used. Do not try to work around
   it with variables or helper scripts; if the user wants such an operation, tell
   them to run it from the Unraid terminal or GUI themselves.
+- Write to the flash drive while `/host/boot` is mounted read-only. The mount
+  mode is the user's decision in the Docker template, not an obstacle, and it
+  is enforced: `/host/boot` is read-only in this container, and `host …` runs
+  every command with `/boot` read-only as well, so a write there fails with
+  "Read-only file system". If the user asks you to change plugins, templates
+  or `/boot/config` while it is read-only, or a command fails that way, the
+  answer is: switch "Unraid Boot Config" to Read/Write in the template and
+  apply, then ask again. Do not look for another route: no remounting, no
+  `nsenter`/`unshare`, no container that mounts `/boot`.
+- Start or restart host services (`/etc/rc.d/rc.*`) through `host`. A service
+  started that way keeps the helper's read-only view of `/boot` for as long
+  as it runs. Tell the user to do it from the Unraid GUI or terminal.
 
 ### Untrusted content
 

@@ -239,9 +239,14 @@ expect_contains "$TMP/CLAUDE.md" "## Custom"
 
 # ── Guard hook ───────────────────────────────────────────────────────────────
 echo "guard: blocked commands"
+# The guard reads the container's mountinfo to decide about flash-drive writes.
+# Default fixture for these tests: /host/boot mounted read-write (so the ask
+# tier is exercised); a read-only fixture is used further below.
+sed 's#/boot /host/boot ro,relatime - vfat /dev/sda1 ro#/boot /host/boot rw,relatime - vfat /dev/sda1 rw#' "$TMP/mountinfo" > "$TMP/mountinfo-boot-rw"
+grep -q '/host/boot rw' "$TMP/mountinfo-boot-rw" || { echo "fixture error: rw mountinfo"; exit 1; }
 guard() {
   jq -cn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' \
-    | bash "$ROOT/claude-guard" 2>/dev/null
+    | MOUNTINFO="${GUARD_MOUNTINFO:-$TMP/mountinfo-boot-rw}" bash "$ROOT/claude-guard" 2>/dev/null
 }
 # blocked: exit 2.  allowed: exit 0 and no output.  ask: exit 0 and JSON with the reason.
 expect_blocked() { if guard "$1" >/dev/null; then fail "not blocked: $1"; else pass "blocked: $1"; fi; }
@@ -374,6 +379,74 @@ expect_ask 'docker compose down -v' "deletes container data"
 expect_ask 'host zfs destroy tank/old' "destroys storage snapshots"
 expect_ask 'host zfs rollback tank/media@yesterday' "destroys storage snapshots"
 expect_ask 'host btrfs subvolume delete /mnt/cache/old' "destroys storage snapshots"
+
+echo "guard: flash drive — the kernel enforces the mount mode; the guard only adds a reason when read-write"
+printf '100 90 0:50 / / rw,relatime - overlay overlay rw\n' > "$TMP/mountinfo-noboot"
+printf '100 90 0:50 / / rw,relatime - overlay overlay rw\n110 100 8:1 /boot /host/boot rw,relatime - vfat /dev/sda1 ro\n' > "$TMP/mountinfo-superro"
+# Not read-write (ro bind, ro filesystem, not mounted, unreadable): the guard stays out of it;
+# the container mount and the host wrapper's read-only /boot refuse the write.
+for mi in "$TMP/mountinfo" "$TMP/mountinfo-superro" "$TMP/mountinfo-noboot" "$TMP/no-such-file"; do
+  GUARD_MOUNTINFO="$mi" expect_allowed "host sh -c 'echo x > /boot/config/go'"
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host plugin install https://x/y.plg'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'cp /host/boot/config/go /tmp/go'
+  GUARD_MOUNTINFO="$mi" expect_ask 'host zfs destroy tank/old' "destroys storage snapshots"   # other ask rules unaffected
+done
+# Read-write: anything that touches /boot with a writing tool asks, with a reason.
+expect_ask "host sh -c 'echo x > /boot/config/go'" "flash drive"
+expect_ask 'host plugin install https://x/y.plg' "flash drive"
+expect_ask 'cp my.xml /host/boot/config/plugins/dockerMan/templates-user/' "flash drive"
+expect_ask "host sed -Ei 's/a/b/' /boot/config/go" "flash drive"
+expect_ask 'host tar xzf /tmp/x.tgz -C /boot/config/' "flash drive"
+expect_ask 'host wget -O /boot/config/plugins/x.plg https://x/y.plg' "reaches the network"   # the network reason outranks the flash one
+expect_ask 'host cp x "/boot/config/my file"' "flash drive"
+expect_ask 'host mv /boot/config/plugins/foo.plg /tmp/' "flash drive"
+expect_ask 'cp /host/boot/config/go /tmp/go' "flash drive"          # a read with a writing tool: one extra prompt, accepted
+expect_allowed 'cat /host/boot/config/go'
+expect_allowed 'ls /boot/config/ssh'
+expect_allowed 'host grep -r foo /boot/config/'
+expect_allowed 'mkdir -p /tmp/backup && cat /host/boot/config/go'   # operators end an argument list
+expect_ask 'docker run --rm -v /boot:/b alpine sh -c "echo x > /b/config/go"' "host-level access"
+expect_ask 'docker run --rm --mount type=bind,target=/b,source=/boot alpine sh' "host-level access"
+expect_ask 'docker run -v "/boot:/b" alpine' "host-level access"
+# Undoing the read-only view from inside a host command always asks, in any
+# spelling the kernel enforcement cannot catch.
+for mi in "$TMP/mountinfo" "$TMP/mountinfo-boot-rw"; do
+  GUARD_MOUNTINFO="$mi" expect_ask 'host mount -o remount,rw /boot' "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask "host sh -c 'mount -o remount,rw /boot && cp x /boot/config/go'" "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask "host sh -c 'ls; mount -o remount,rw /boot'" "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host /sbin/mount -o remount,rw /boot' "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host env mount -o remount,rw /boot' "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask "host sh -c 'exec mount -o remount,rw /boot'" "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask "host zsh -c 'mount -o remount,rw /boot'" "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask $'host sh -c "ls\nmount -o remount,rw /boot"' "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host /usr/bin/nsenter -t 1 -m sh' "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host unshare -m sh' "changes mounts or namespaces"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host /etc/rc.d/rc.nginx restart' "starts or restarts a host service"
+  GUARD_MOUNTINFO="$mi" expect_ask 'host sh -c "/etc/rc.d/rc.docker restart"' "starts or restarts a host service"
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host mountpoint /boot'          # not "mount"
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host grep mount /var/log/syslog'
+  GUARD_MOUNTINFO="$mi" expect_allowed 'host cat /etc/rc.d/rc.nginx'
+done
+# Flash operand forms (rw mount): /boot followed by an operator, quote or redirect; cd / find / --volume=.
+expect_ask 'host cp bzimage /boot && echo ok' "flash drive"
+expect_ask 'host cp x "/boot"' "flash drive"
+expect_ask 'host cp bzimage /boot 2>&1' "flash drive"
+expect_ask "host sh -c 'cd /boot/config && rm go'" "flash drive"
+expect_ask "host find /boot/config -name '*.old' -delete" "flash drive"
+expect_ask 'docker run --volume=/boot:/b alpine' "host-level access"
+expect_ask 'docker run -v=/:/h alpine' "host-level access"
+# Block tier must not cross operators either, but redirections are arguments.
+expect_allowed 'rm -rf /tmp/x; ls /mnt/user'
+expect_allowed 'dd if=/dev/zero of=/tmp/img bs=1M count=1 && ls /dev/sda'
+expect_blocked 'host rm -rf 2>&1 /mnt/user'
+expect_blocked 'host rm -rf >/dev/null 2>&1 /mnt/user'
+expect_blocked 'host dd 2>&1 of=/dev/sdb if=/tmp/x'
+# boot-mode helper itself.
+if [ "$(MOUNTINFO="$TMP/mountinfo" bash "$ROOT/boot-mode")" = ro ]; then pass "boot-mode: ro"; else fail "boot-mode ro"; fi
+if [ "$(MOUNTINFO="$TMP/mountinfo-boot-rw" bash "$ROOT/boot-mode")" = rw ]; then pass "boot-mode: rw"; else fail "boot-mode rw"; fi
+if [ "$(MOUNTINFO="$TMP/mountinfo-superro" bash "$ROOT/boot-mode")" = ro ]; then pass "boot-mode: ro filesystem"; else fail "boot-mode superro"; fi
+if [ "$(MOUNTINFO="$TMP/mountinfo-noboot" bash "$ROOT/boot-mode")" = none ]; then pass "boot-mode: none"; else fail "boot-mode none"; fi
+if [ "$(MOUNTINFO="$TMP/no-such-file" bash "$ROOT/boot-mode")" = unknown ]; then pass "boot-mode: unknown"; else fail "boot-mode unknown"; fi
 
 echo "guard: still silent for everyday commands"
 expect_allowed 'logs plex'

@@ -127,8 +127,11 @@ By default Claude sees the flash drive read-only and no shares. To extend
 that: Docker tab → container → **Edit**:
 
 - **Unraid Boot Config** → change `Read Only` to `Read/Write` to let Claude
-  install plugins or edit templates. Claude is told to show you the change
-  before writing.
+  install plugins or edit templates. While it is read-only, the flash drive
+  is read-only for Claude everywhere, host commands included (they run with
+  `/boot` read-only); a write simply fails, and Claude is told to send you
+  here instead of looking for a way around. Once read-write, commands that
+  touch the flash drive ask you first, with a reason.
 - **Container App Data** (advanced view) → set to `/mnt/user/appdata` (or
   your path) read-only, so Claude can inspect other containers' configs.
 - **Any share** → *Add another Path* at the bottom of the edit page: Host path

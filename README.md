@@ -116,8 +116,8 @@ cannot manage containers or run host commands, which is the entire point.
 | Mount | Default | What it enables |
 |-------|---------|----------------|
 | Docker socket | mounted (rw) | Container management, host command execution |
-| `/host/boot` | **read-only** | View Unraid config, plugins, templates |
-| `/host/boot` (rw) | opt-in | Modify config, install plugins, edit templates |
+| `/host/boot` | **read-only** | View Unraid config, plugins, templates. The flash drive is read-only for Claude in the container by the mount, and for `host …` commands because they run with `/boot` remounted read-only in their own mount namespace: an ordinary write fails with "Read-only file system", whatever the command. Host commands still run as root, so one that remounts or re-enters namespaces could undo that; the guard asks before those |
+| `/host/boot` (rw) | opt-in | Modify config, install plugins, edit templates; commands that touch the flash drive should ask you first, with a reason (text match, so not every spelling) |
 | `/appdata` | not mounted | Inspect other containers' configs and logs |
 | Any share | not mounted | Add it with *Add another Path* in the template (any container path outside `/root`, read-only unless Claude should change files). Claude knows which shares exist and tells you how to add one when it matters |
 | Host networking | off (bridge) | Only needed if something must reach this container directly; outbound SSH to VMs and LAN hosts works in bridge mode |
@@ -155,8 +155,10 @@ Three independent layers, in order of how much you should rely on them:
    never be done from this container. A second tier **always asks**, with a
    reason shown in the prompt, whatever permission mode the session is in:
    downloads piped to a shell, network tools (`curl`, `wget`, `ssh`, `scp`,
-   …), containers started with host-level access, writes to the flash drive,
-   `docker rm`/`prune`, `zfs destroy`/`rollback`. In Manual mode you would
+   …), containers started with host-level access, commands touching the
+   flash drive while it is mounted read-write (while read-only, the kernel
+   refuses writes and the guard has nothing to add), `docker rm`/`prune`,
+   `zfs destroy`/`rollback`. In Manual mode you would
    have been asked anyway; the gain is the `claude-guard:` line telling you
    why to look twice. In auto mode it takes these commands away from the
    classifier and back to you. The guard matches text: a command built from

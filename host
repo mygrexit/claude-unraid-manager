@@ -8,6 +8,17 @@
 #   host zpool status
 #   host sh -c 'ls /boot/config/plugins/*.plg'
 #
+# The flash drive follows the mount mode of /host/boot in this container:
+# unless it is mounted read-write, the command runs in its own mount
+# namespace on the host with /boot remounted read-only, so any ordinary
+# write there fails with "Read-only file system", whatever the command
+# looks like. The host itself keeps /boot read-write. The command still runs
+# as root with full capabilities (zpool, mdcmd and virsh need them), so a
+# command that itself remounts or re-enters namespaces could undo this; the
+# guard asks before such commands. A service started this way would keep the
+# read-only view for its lifetime, so services are not (re)started through
+# host; the guard asks before that too.
+#
 # The helper image is tiny and is pre-pulled by the entrypoint. Override it
 # with HOST_HELPER_IMAGE if you mirror images locally.
 set -euo pipefail
@@ -19,5 +30,16 @@ if [ $# -eq 0 ]; then
   exit 64
 fi
 
+if [ "$("$(dirname "$0")/boot-mode")" = "rw" ]; then
+  exec docker run --rm -i --privileged --pid=host "$IMAGE" \
+    nsenter -t 1 -m -u -i -n -p -- "$@"
+fi
+
+# unshare -m gives the command its own copy of the host's mount table.
+# Propagation is left unchanged on purpose: /boot is a private mount on
+# Unraid, so the read-only remount stays in the copy, while /mnt is shared, so
+# mounts the command creates there (zfs mount, zpool import, a USB disk)
+# still reach the host. If the remount fails, the command does not run.
 exec docker run --rm -i --privileged --pid=host "$IMAGE" \
-  nsenter -t 1 -m -u -i -n -p -- "$@"
+  nsenter -t 1 -m -u -i -n -p -- unshare -m --propagation unchanged sh -c \
+    'mount -o remount,bind,ro /boot || { echo "host: could not make /boot read-only, refusing to run" >&2; exit 97; }; exec "$@"' sh "$@"
