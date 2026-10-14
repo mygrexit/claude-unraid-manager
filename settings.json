@@ -5,6 +5,7 @@
     "allow": [
       "Bash(docker ps *)",
       "Bash(docker logs *)",
+      "Bash(logs *)",
       "Bash(docker inspect *)",
       "Bash(docker images *)",
       "Bash(docker stats --no-stream *)",

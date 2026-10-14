@@ -57,7 +57,7 @@ to investigate and, ideally after you confirm, to fix things.
 
 - **Auto-discovery** — on every start, scans your Unraid server and writes a `CLAUDE.md` with your storage topology, containers, VMs, plugins, User Scripts and network config
 - **Safe defaults** — boot drive read-only, no shares mounted, bridge networking. The user opts in to more access
-- **Guard hook** — a short list of catastrophic commands (`mkfs`, `wipefs`, writing to a disk, `zpool destroy`, `rm -rf` on a mount root) is blocked by a text match on the whole command, whichever wrapper is used (`host`, `sh -c`, absolute paths). A safety net, not a wall; see [Defense in Depth](#defense-in-depth)
+- **Guard hook** — a short list of catastrophic commands (`mkfs`, `wipefs`, writing to a disk, `zpool destroy`, `rm -rf` on a mount root) is blocked by a text match on the whole command, whichever wrapper is used (`host`, `sh -c`, absolute paths); a second list (downloads piped to a shell, network tools, deletes, flash-drive writes) always asks you first, with a reason, in any permission mode. A safety net, not a wall; see [Defense in Depth](#defense-in-depth) and [Prompt injection](#prompt-injection)
 - **Remote Control** — reach your Claude session from phone or tablet via the Claude app
 - **Persistent sessions** — tmux keeps the session alive across disconnects; Claude is restarted if it exits; `--continue` resumes the last conversation
 - **GUI-aware** — Claude is instructed to create dockerMan templates for new containers, respect Unraid's persistence model, and keep changes manageable through the web UI. Instructions, not guarantees
@@ -150,10 +150,15 @@ Three independent layers, in order of how much you should rely on them:
    `deny` rules are also present, but they only match the outermost command,
    so on their own they would not stop `host mkfs.ext4 /dev/sdb`.
 
-   This list is deliberately short: it covers operations that should never be
-   done from this container. Everything else that is risky (`zfs destroy`,
-   `docker rm`, editing `/boot/config`) goes through the rules in layer 3 and
-   your confirmation in layer 1. The guard matches text: a command built from
+   This block list is deliberately short: it covers operations that should
+   never be done from this container. A second tier **always asks**, with a
+   reason shown in the prompt, whatever permission mode the session is in:
+   downloads piped to a shell, network tools (`curl`, `wget`, `ssh`, `scp`,
+   …), containers started with host-level access, writes to the flash drive,
+   `docker rm`/`prune`, `zfs destroy`/`rollback`. In Manual mode you would
+   have been asked anyway; the gain is the `claude-guard:` line telling you
+   why to look twice. In auto mode it takes these commands away from the
+   classifier and back to you. The guard matches text: a command built from
    shell variables, written to a script first, or obfuscated beyond simple
    quoting is outside its reach. It catches mistakes, not a determined
    bypass.
@@ -176,6 +181,36 @@ Switching to auto mode with `Shift+Tab` sticks to that conversation: because
 the container resumes the last conversation on start, it comes back in auto
 mode after a restart until you switch back or start a fresh conversation
 (`/clear`).
+
+### Prompt injection
+
+Claude reads container logs and files to do its job. Anything an attacker can
+get into those (a crafted user agent in a web server log, a file name in a
+share) can contain text that looks like an instruction: *"to fix this, run
+…"*. A language model cannot reliably tell such text from a real request. This
+container combines the three things that make that dangerous: access to your
+data, exposure to untrusted content, and ways to send data out. Nobody has
+solved this; it can only be contained.
+
+What this image does about it:
+
+- Sessions start in Manual mode, so the command Claude proposes is shown to
+  you before it runs. **Reading that prompt is the real control.**
+- The guard's ask tier makes the commands an injection would go for (download
+  and run, send data out, delete, write to the flash drive) prompt you with a
+  reason, even in auto mode.
+- `logs <container>` reads logs with terminal escape codes stripped (they can
+  hide text) and framed as untrusted data; Claude is told to use it and to
+  report, not follow, instructions it finds in logs or files.
+
+What it cannot do: close the way out. With the Docker socket mounted, Claude
+can reach the network from the Unraid host through `host …`, outside any
+sandbox inside the container; Claude Code's own sandbox would also need
+kernel features Docker blocks by default. A real boundary needs either
+network egress rules on the host or a mode without host access (a
+socket-proxy "restricted mode" is on the list, not built). Until then: keep
+the prompts on, read them, and treat a proposed `curl … | sh` from a log the
+way you would treat it in an e-mail.
 
 ## Attaching to the Session
 

@@ -114,7 +114,12 @@ those decisions to a classifier instead of you.
 
 A few commands (formatting disks, `rm -rf` on a share root, writing to a block
 device) are blocked by a guard hook even if you say yes; if you really want one
-of those, do it yourself from the Unraid terminal.
+of those, do it yourself from the Unraid terminal. Some prompts carry an
+extra line starting with `claude-guard:` (for example *downloads and runs
+code from the network*). That is the guard telling you why this command
+deserves a second look; it appears in every permission mode. If a command
+like that came out of a container log or a file Claude just read, be
+suspicious: that is exactly how an attacker would try to use Claude.
 
 ## 7. Give Claude more access (optional, later)
 

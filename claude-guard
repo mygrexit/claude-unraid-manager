@@ -12,8 +12,14 @@
 # first, or obfuscated beyond simple quoting is outside its reach — it is a
 # safety net against mistakes, not a security boundary.
 #
-# Exit code 2 blocks the tool call; stderr is shown to Claude. Any other
-# failure exits 1 so that `onFailure: "block"` in settings.json applies.
+# Two tiers:
+#   block — exit code 2, stderr is shown to Claude. Never run from here.
+#   ask   — JSON with permissionDecision "ask" on stdout, exit 0. The command
+#           always gets a permission prompt that carries the reason, whatever
+#           permission mode the session is in. In Manual mode the gain is the
+#           reason line; in auto mode it restores the human decision for the
+#           class of commands a prompt injection would go for.
+# Any other failure exits 1 so that `onFailure: "block"` in settings.json applies.
 # Registered in settings.json under hooks.PreToolUse.
 set -uo pipefail
 
@@ -71,6 +77,35 @@ for rule in "${rules[@]}"; do
       echo "The guard is registered in ~/.claude/settings.json (hooks.PreToolUse)."
     } >&2
     exit 2
+  fi
+done
+
+# ── Ask tier ─────────────────────────────────────────────────────────────────
+# Legitimate sometimes, but exactly what an injected instruction would ask
+# for. Rare false positives (e.g. `grep curl …`) only cost one extra prompt.
+# Start of a command word for network tools: line start, an operator, or a
+# path separator, but not "." (so ~/.ssh is not a tool call).
+W='(^|[[:space:];&|(/]|\$\()'
+SH='(ba|da|z)?sh'
+NET='(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|telnet)'
+FLASH='/(host/)?boot/config'
+ask_rules=(
+  "downloads and runs code from the network|((curl|wget)[^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?${SH}${T}|${SH}[[:space:]]+-c[[:space:]]+${Q}\\\$\((curl|wget)|<\((curl|wget))"
+  "decodes and runs hidden code|base64[[:space:]]+(-d|--decode)[^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?${SH}${T}"
+  "reaches the network (possible data exfiltration)|(${W}${NET}${T}|${W}rsync[[:space:]]+${ARGS}[^[:space:]]*(@|rsync://)[^[:space:]]*)"
+  "starts a container with host-level access|${B}docker[[:space:]]+(run|create)[^;&|]*(--privileged|--pid[= ]host|--net(work)?[= ]host|-v[[:space:]]+/:|--mount[^[:space:]]*source=/,|docker\.sock)"
+  "writes to the Unraid flash drive|(>>?[[:space:]]*${Q}${FLASH}|${B}(cp|mv|tee|install|rsync|sed)[[:space:]]+${ARGS}${Q}${FLASH}|${B}plugin[[:space:]]+(install|remove|update)${T})"
+  "deletes container data|${B}docker[[:space:]]+(rm|rmi|system[[:space:]]+prune|volume[[:space:]]+(rm|prune)|image[[:space:]]+prune|container[[:space:]]+prune)${T}"
+  "destroys storage snapshots or datasets|(${B}zfs[[:space:]]+(destroy|rollback)${T}|${B}btrfs[[:space:]]+subvolume[[:space:]]+delete${T})"
+)
+
+for rule in "${ask_rules[@]}"; do
+  label=${rule%%|*}
+  regex=${rule#*|}
+  if printf '%s\n' "$norm" | grep -Eq -- "$regex"; then
+    jq -cn --arg reason "claude-guard: $label. Review this command before approving." \
+      '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $reason}}'
+    exit 0
   fi
 done
 

@@ -20,6 +20,7 @@ Claude Code set up as an Unraid administrator, not as a coding tool: an AI assis
 - Scans your storage (ZFS, btrfs, array), containers, VMs, plugins, User Scripts and network on every start and writes a CLAUDE.md so Claude knows your server.
 - Manages containers via the Docker socket and runs host commands through a short-lived helper container. No privileged mode needed.
 - Safe defaults: boot drive read-only, no shares mounted. Opt in to more access as needed.
+- Risky commands (downloads piped to a shell, network tools, deletes, writes to the flash drive) always ask for your approval with a reason, whatever the mode; disk formatting and wipes are blocked outright.
 
 **Requirements**
 An Anthropic account: a claude.ai subscription (also needed for Remote Control) or a Console API key.
@@ -37,6 +38,11 @@ Tested on the author's two Unraid 7.3.3 servers (ZFS pool-only), not on a range 
 **Warning**
 The Docker socket gives this container root-equivalent access to your server. The guard rails reduce accidents but are not a security boundary. If you would not do the same work yourself on the Unraid command line, do not install this. Review every action before confirming. Keep backups. The author accepts no liability for data loss or misconfiguration.</Overview>
   <Changes>
+### 0.1.0-beta.5 (2026-10-14)
+- Guard "ask" tier: downloads piped to a shell, network tools, host-level containers, flash-drive writes, docker/zfs deletes always prompt with a reason, in any permission mode.
+- `logs &lt;container&gt;`: container logs stripped of terminal escape codes and framed as untrusted data; Claude is told to report, not follow, instructions found in logs.
+- Settings updates now add shipped allow/deny entries to yours instead of leaving your list as is.
+
 ### 0.1.0-beta.4 (2026-10-14)
 - Fixes beta.3, whose container exited at start ("can't find pane"). Update if you installed beta.3.
 

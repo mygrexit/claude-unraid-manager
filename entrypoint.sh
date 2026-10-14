@@ -17,7 +17,7 @@ export HOST_HELPER_IMAGE="${HOST_HELPER_IMAGE:-alpine:3.21}"
 SETTINGS_DEFAULT=/usr/local/share/claude-unraid-manager/settings.json
 SETTINGS=/root/.claude/settings.json
 SETTINGS_STAMP=/root/.claude/.claude-unraid-manager-settings-version
-SETTINGS_VERSION=2   # bump whenever settings.json gains keys existing installs should receive
+SETTINGS_VERSION=3   # bump whenever settings.json gains keys existing installs should receive
 mkdir -p /root/.claude
 stamp=$(cat "$SETTINGS_STAMP" 2>/dev/null || true)
 case "$stamp" in ''|*[!0-9]*) stamp=0 ;; esac
