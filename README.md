@@ -65,6 +65,9 @@ to investigate and, ideally after you confirm, to fix things.
 
 ## Quick Start
 
+Step by step, including console, login and phone:
+**[docs/getting-started.md](docs/getting-started.md)**. The short version:
+
 Not in Community Applications yet. The beta image is published at
 `ghcr.io/mygrexit/claude-unraid-manager:beta`, which is what the template
 points to. Install the template by hand:

@@ -24,6 +24,12 @@ Claude Code set up as an Unraid administrator, not as a coding tool: an AI assis
 **Requirements**
 An Anthropic account: a claude.ai subscription (also needed for Remote Control) or a Console API key.
 
+**Setup**
+1. Apply this template with the default mounts (adjust the two appdata paths if yours is not /mnt/user/appdata).
+2. Open the container's Console in the Docker tab and run: tmux attach -t main
+3. Follow the one-time login (URL in any browser, paste the code back). Leave with Ctrl-b, then d.
+Full walkthrough: https://github.com/mygrexit/claude-unraid-manager/blob/main/docs/getting-started.md
+
 **Beta**
 Tested on the author's two Unraid 7.3.3 servers (ZFS pool-only), not on a range of setups. It is an AI agent: its rules shape what it does, they do not guarantee it.
 
