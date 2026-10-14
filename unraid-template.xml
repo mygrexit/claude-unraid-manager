@@ -21,7 +21,7 @@
   <Category>Tools:System</Category>
   <WebUI/>
   <TemplateURL>https://raw.githubusercontent.com/mygrexit/unraid-templates/main/templates/claude-unraid-manager.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/png/claude-ai.png</Icon>
+  <Icon>https://raw.githubusercontent.com/mygrexit/unraid-templates/main/images/claude-unraid-manager.png</Icon>
   <ExtraParams>--hostname claude-unraid-manager</ExtraParams>
   <PostArgs/>
   <CPUset/>
