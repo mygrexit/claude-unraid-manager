@@ -41,7 +41,7 @@ The Docker socket gives this container root-equivalent access to your server. Th
 ### 0.1.0-beta.5 (2026-10-14)
 - Guard "ask" tier: downloads piped to a shell, network tools, host-level containers, flash-drive writes, docker/zfs deletes always prompt with a reason, in any permission mode.
 - `logs &lt;container&gt;`: container logs stripped of terminal escape codes and framed as untrusted data; Claude is told to report, not follow, instructions found in logs.
-- Settings updates now add shipped allow/deny entries to yours instead of leaving your list as is.
+- Settings updates add new shipped deny entries to yours; your allow list stays as you set it (missing shipped entries are named in the start log).
 
 ### 0.1.0-beta.4 (2026-10-14)
 - Fixes beta.3, whose container exited at start ("can't find pane"). Update if you installed beta.3.

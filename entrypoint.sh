@@ -29,7 +29,9 @@ elif [ "$stamp" -lt "$SETTINGS_VERSION" ]; then
     cp "$SETTINGS" "$SETTINGS.bak"
     mv "$SETTINGS.merged" "$SETTINGS"
     echo "$SETTINGS_VERSION" > "$SETTINGS_STAMP"
-    echo "settings.json: merged in the shipped defaults (guard hook, permission mode) underneath your settings (backup: settings.json.bak)."
+    echo "settings.json: merged in the shipped defaults (guard hook, permission mode, deny list) underneath your settings (backup: settings.json.bak)."
+    missing=$(claude-settings-merge --missing-allow "$SETTINGS_DEFAULT" "$SETTINGS" 2>/dev/null | tr '\n' ' ')
+    [ -z "$missing" ] || echo "settings.json: your allow list was left as is; shipped read-only entries it does not have: $missing"
   else
     rm -f "$SETTINGS.merged"
     echo "Warning: settings.json is not valid JSON; the shipped defaults (guard hook, permission mode) were not merged in."

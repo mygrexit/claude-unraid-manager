@@ -2,15 +2,24 @@
 # claude-settings-merge <defaults.json> <user.json>
 #
 # Prints the user's settings with the shipped defaults merged underneath
-# (user keys win on conflicts). The permissions.allow and permissions.deny
-# lists are unioned so that shipped read-only commands reach existing
-# installs. If the user's hooks do not contain the guard hook, the shipped
+# (user keys win on conflicts). The permissions.deny list is unioned (adding
+# a deny entry can only make things safer); permissions.allow stays the
+# user's own list, so an entry they removed to get prompted again stays
+# removed. If the user's hooks do not contain the guard hook, the shipped
 # PreToolUse entries are appended to theirs instead of replacing them.
 # Idempotent: running it on its own output changes nothing.
+# With --missing-allow <defaults> <user> it prints, one per line, the shipped
+# allow entries the user's file lacks, for an informational log line.
 set -euo pipefail
+
+if [ "${1:-}" = "--missing-allow" ] && [ $# -eq 3 ]; then
+  jq -r -s '(.[0].permissions.allow // []) - (.[1].permissions.allow // []) | .[]' "$2" "$3"
+  exit 0
+fi
 
 if [ $# -ne 2 ]; then
   echo "usage: claude-settings-merge <defaults.json> <user.json>" >&2
+  echo "       claude-settings-merge --missing-allow <defaults.json> <user.json>" >&2
   exit 64
 fi
 
@@ -21,8 +30,7 @@ jq -s '
 
   .[0] as $defaults | .[1] as $user |
   ($defaults * $user)
-  | .permissions.allow = ((($user.permissions.allow // []) + ($defaults.permissions.allow // [])) | unique)
-  | .permissions.deny  = ((($user.permissions.deny  // []) + ($defaults.permissions.deny  // [])) | unique)
+  | .permissions.deny = ((($user.permissions.deny // []) + ($defaults.permissions.deny // [])) | unique)
   | if ($user | has_guard) then .
     else .hooks.PreToolUse = (($user.hooks.PreToolUse // []) + ($defaults.hooks.PreToolUse // []))
     end

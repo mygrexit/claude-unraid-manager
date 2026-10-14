@@ -83,19 +83,27 @@ done
 # ── Ask tier ─────────────────────────────────────────────────────────────────
 # Legitimate sometimes, but exactly what an injected instruction would ask
 # for. Rare false positives (e.g. `grep curl …`) only cost one extra prompt.
-# Start of a command word for network tools: line start, an operator, or a
-# path separator, but not "." (so ~/.ssh is not a tool call).
-W='(^|[[:space:];&|(/]|\$\()'
-SH='(ba|da|z)?sh'
+# A network tool counts when it is invoked: as a bare word after whitespace or
+# a quote (`host curl …`, `sh -c "curl …"`), or by path at the start of a
+# command or right after a wrapper (`/usr/bin/curl …`, `host /usr/bin/ssh …`).
+# A path that merely ends in a tool name as an argument (`ls /boot/config/ssh`)
+# is not an invocation.
 NET='(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|telnet)'
-FLASH='/(host/)?boot/config'
+CMD_START="(^|[;&|(]|\\\$\(|${B}(host|sudo|exec|nohup|command)[[:space:]]+)[[:space:]]*"
+NET_CALL="([[:space:]\"']${NET}${T}|${CMD_START}(/[^[:space:]\"']*/)?${NET}${T})"
+SH='(ba|da|z)?sh'
+# A remote rsync target: user@host:, host:/path, or rsync:/ (the normalisation
+# above has already collapsed "rsync://" to "rsync:/").
+RSYNC_REMOTE="rsync[[:space:]]+[^;&|]*(@|rsync:/|[[:space:]][^[:space:]/\"']+:[^[:space:]]*)"
+FLASH='/(host/)?boot(/|$)'
+DOCKER_HOSTY='(--privileged|--pid[= ]host|--net(work)?[= ]host|--ipc[= ]host|--userns[= ]host|--cap-add|--security-opt|(-v|--volume)[[:space:]]*/:|--mount[[:space:]]*[^[:space:]]*(source|src)=/,|docker\.sock)'
 ask_rules=(
   "downloads and runs code from the network|((curl|wget)[^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?${SH}${T}|${SH}[[:space:]]+-c[[:space:]]+${Q}\\\$\((curl|wget)|<\((curl|wget))"
   "decodes and runs hidden code|base64[[:space:]]+(-d|--decode)[^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?${SH}${T}"
-  "reaches the network (possible data exfiltration)|(${W}${NET}${T}|${W}rsync[[:space:]]+${ARGS}[^[:space:]]*(@|rsync://)[^[:space:]]*)"
-  "starts a container with host-level access|${B}docker[[:space:]]+(run|create)[^;&|]*(--privileged|--pid[= ]host|--net(work)?[= ]host|-v[[:space:]]+/:|--mount[^[:space:]]*source=/,|docker\.sock)"
-  "writes to the Unraid flash drive|(>>?[[:space:]]*${Q}${FLASH}|${B}(cp|mv|tee|install|rsync|sed)[[:space:]]+${ARGS}${Q}${FLASH}|${B}plugin[[:space:]]+(install|remove|update)${T})"
-  "deletes container data|${B}docker[[:space:]]+(rm|rmi|system[[:space:]]+prune|volume[[:space:]]+(rm|prune)|image[[:space:]]+prune|container[[:space:]]+prune)${T}"
+  "reaches the network (possible data exfiltration)|(${NET_CALL}|${B}${RSYNC_REMOTE})"
+  "starts a container with host-level access|${B}docker[[:space:]]+(run|create)[^;&|]*${DOCKER_HOSTY}"
+  "writes to the Unraid flash drive|(>>?[[:space:]]*${Q}${FLASH}|${B}(cp|mv|tee|install|rsync|sed|rm|mkdir|touch|truncate|chmod|chown|ln)[[:space:]]+${ARGS}${Q}${FLASH}|${B}dd[[:space:]]+${ARGS}of=${Q}${FLASH}|${B}plugin[[:space:]]+(install|remove|update)${T})"
+  "deletes container data|(${B}docker[[:space:]]+(rm|rmi|system[[:space:]]+prune|(volume|image|container|network)[[:space:]]+(rm|prune))${T}|${B}docker[[:space:]]+compose[[:space:]]+down[^;&|]*[[:space:]](-v|--volumes)${T})"
   "destroys storage snapshots or datasets|(${B}zfs[[:space:]]+(destroy|rollback)${T}|${B}btrfs[[:space:]]+subvolume[[:space:]]+delete${T})"
 )
 

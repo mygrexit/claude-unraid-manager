@@ -19,11 +19,33 @@ if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   exit 64
 fi
 
-name=$1
-shift
+# The container name is the first argument, or, when options come first
+# (`logs --since 1h plex`, the order docker logs uses), the first word that is
+# neither an option nor the value of one.
+name=""
+args=()
+if [ "${1#-}" = "$1" ]; then
+  name=$1
+  shift
+  args=("$@")
+else
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --since|--until|--tail|-n)
+        args+=("$1" "${2:-}")
+        if [ $# -ge 2 ]; then shift 2; else shift; fi ;;
+      -*) args+=("$1"); shift ;;
+      *) if [ -z "$name" ]; then name=$1; else args+=("$1"); fi; shift ;;
+    esac
+  done
+fi
+if [ -z "$name" ]; then
+  usage
+  exit 64
+fi
 opts=()
 has_tail=false
-for a in "$@"; do
+for a in "${args[@]}"; do
   case "$a" in
     -f|--follow) continue ;;
     --tail|--tail=*|-n|-n=*) has_tail=true ;;
@@ -32,7 +54,7 @@ for a in "$@"; do
 done
 [ "$has_tail" = true ] || opts=(--tail 200 "${opts[@]}")
 
-raw=$(docker logs "${opts[@]}" "$name" 2>&1)
+raw=$(docker logs "${opts[@]}" -- "$name" 2>&1)
 status=$?
 if [ $status -ne 0 ]; then
   printf '%s\n' "$raw" >&2
@@ -41,13 +63,21 @@ fi
 
 # Byte semantics (LC_ALL=C): the bracket ranges below are byte ranges, and
 # UTF-8 locales reject some of them as "invalid range end".
+# Removed: CSI (ESC [ … final), OSC (ESC ] … BEL/ST), nF (ESC, intermediates
+# 0x20-0x2F, final 0x30-0x7E, e.g. "ESC ( B"), single-char ESC sequences
+# (e.g. "ESC c"), every C0 control except tab and newline (carriage return
+# included: it lets a line overwrite its own start on a terminal), DEL, and
+# the Unicode bidi overrides and zero-width characters that hide or reorder
+# text (U+202A-U+202E, U+2066-U+2069, U+200B-U+200D, U+FEFF).
 ESC=$'\x1b'
 BEL=$'\x07'
 clean=$(printf '%s\n' "$raw" \
   | LC_ALL=C sed -E -e "s/${ESC}\[[0-?]*[ -/]*[@-~]//g" \
                     -e "s/${ESC}\][^${BEL}${ESC}]*(${BEL}|${ESC}\\\\)?//g" \
-                    -e "s/${ESC}[@-Z\\\\^_]//g" \
-  | LC_ALL=C tr -d '\000-\010\013\014\016-\037\177' \
+                    -e "s/${ESC}[ -/]+[0-~]//g" \
+                    -e "s/${ESC}[@-~]//g" \
+                    -e 's/\xe2\x80[\xaa-\xae]//g; s/\xe2\x81[\xa6-\xa9]//g; s/\xe2\x80[\x8b-\x8d]//g; s/\xef\xbb\xbf//g' \
+  | LC_ALL=C tr -d '\000-\010\013-\037\177' \
   | LC_ALL=C awk '{ if (length($0) > 2000) print substr($0, 1, 2000) " [line truncated]"; else print }')
 if [ -n "$clean" ]; then lines=$(printf '%s\n' "$clean" | grep -c ''); else lines=0; fi
 
