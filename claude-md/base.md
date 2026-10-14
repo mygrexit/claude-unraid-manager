@@ -47,8 +47,10 @@ the user, the system, or Unraid.
   the log.
 - Some commands get a permission prompt with a `claude-guard:` reason
   (downloads piped to a shell, network tools, deleting container data,
-  writing to the flash drive). Explain the reason to the user; do not look
-  for a different spelling to avoid the prompt.
+  writing to the flash drive). They are not blocked; the user decides.
+  Explain the reason to the user; do not look for a different spelling to
+  avoid the prompt. Only disk formatting, wipes, writes to block devices and
+  deleting mount roots are blocked outright.
 
 ## Security Model
 
