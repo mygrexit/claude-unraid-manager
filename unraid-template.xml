@@ -37,6 +37,9 @@ Tested on the author's two Unraid 7.3.3 servers (ZFS pool-only), not on a range 
 **Warning**
 The Docker socket gives this container root-equivalent access to your server. The guard rails reduce accidents but are not a security boundary. If you would not do the same work yourself on the Unraid command line, do not install this. Review every action before confirming. Keep backups. The author accepts no liability for data loss or misconfiguration.</Overview>
   <Changes>
+### 0.1.0-beta.4 (2026-10-14)
+- Fixes beta.3, whose container exited at start ("can't find pane"). Update if you installed beta.3.
+
 ### 0.1.0-beta.3 (2026-10-14)
 - Sessions start in manual mode (ask before acting); auto mode stays one Shift+Tab away.
 - The Console button lands directly in the Claude session.

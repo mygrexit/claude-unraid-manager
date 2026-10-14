@@ -72,6 +72,8 @@ jobs:
           docker run --rm claude-unraid-manager:smoke bash -c 'echo "{\"tool_input\":{\"command\":\"wipefs --help\"}}" | claude-guard; test $? -eq 2'
           docker run --rm claude-unraid-manager:smoke claude-settings-merge /usr/local/share/claude-unraid-manager/settings.json /usr/local/share/claude-unraid-manager/settings.json >/dev/null
           docker run --rm claude-unraid-manager:smoke bash -c 'grep -q "tmux attach" /etc/bash.bashrc && bash -n /etc/bash.bashrc'
+          # The entrypoint's tmux calls, with the image's own tmux version.
+          docker run --rm claude-unraid-manager:smoke bash -c 'tmux new-session -d -s main -c /workspace && tmux has-session -t "=main" && tmux send-keys -t "=main:" "true" C-m && tmux kill-server'
 
       # Unraid runs on x86-64 only, so a single platform is built.
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2

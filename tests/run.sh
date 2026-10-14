@@ -333,6 +333,23 @@ mkdir -p "$CFG/projects/-workspace" && : > "$CFG/projects/-workspace/abc.jsonl"
 first=$(run_session)
 if [ "$first" = "--continue --remote-control My Box" ]; then pass "with history: --continue kept"; else fail "with history: got '$first'"; fi
 
+# ── tmux target syntax used by the entrypoint ────────────────────────────────
+# "=name" is an exact session match for has-session; send-keys needs "=name:"
+# (beta.3 shipped "=name" there and every container exited with
+# "can't find pane"). Run the same calls against a scratch session.
+echo "tmux target syntax"
+if command -v tmux >/dev/null 2>&1; then
+  TS="cum-test-$$"
+  tmux new-session -d -s "$TS" -c "$TMP"
+  if tmux has-session -t "=$TS" 2>/dev/null; then pass "has-session -t =name"; else fail "has-session -t =name"; fi
+  if tmux send-keys -t "=$TS:" "true" C-m 2>/dev/null; then pass "send-keys -t =name:"; else fail "send-keys -t =name:"; fi
+  if grep -qF "tmux send-keys -t \"=\$SESSION:\"" "$ROOT/entrypoint.sh"; then pass "entrypoint uses =name: for send-keys"; else fail "entrypoint send-keys target changed"; fi
+  if grep -qF "tmux has-session -t \"=\$SESSION\"" "$ROOT/entrypoint.sh"; then pass "entrypoint uses =name for has-session"; else fail "entrypoint has-session target changed"; fi
+  tmux kill-session -t "=$TS" 2>/dev/null || true
+else
+  echo "  skip tmux not installed"
+fi
+
 # ── Settings merge ───────────────────────────────────────────────────────────
 echo "settings merge"
 DEFAULTS="$ROOT/settings.json"

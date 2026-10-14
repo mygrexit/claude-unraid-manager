@@ -71,13 +71,15 @@ elif [ -n "$RC_NAME" ] && [ "$RC_NAME" != "off" ]; then
 fi
 
 # ── Start tmux with Claude inside ────────────────────────────────────────────
-# "=" makes tmux match the session name exactly instead of by prefix.
+# "=" makes tmux match the session name exactly instead of by prefix. For
+# pane targets (send-keys) the session must end with ":" or tmux reads the
+# whole string as a pane name.
 if ! tmux has-session -t "=$SESSION" 2>/dev/null; then
   tmux new-session -d -s "$SESSION" -c /workspace
   # Small delay so tmux is fully ready before sending keys
   sleep 0.3
   # claude-session restarts claude if it exits; %q keeps names with spaces intact.
-  tmux send-keys -t "=$SESSION" "clear; $(printf '%q ' claude-session "${ARGS[@]}")" C-m
+  tmux send-keys -t "=$SESSION:" "clear; $(printf '%q ' claude-session "${ARGS[@]}")" C-m
 fi
 
 echo "Claude Unraid Manager is running."
