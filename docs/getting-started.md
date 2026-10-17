@@ -65,6 +65,28 @@ in the container attaches to it automatically, so:
   ```
   Put it in an alias (`alias unraid-claude='ssh -t root@... docker exec -it claude-unraid-manager bash'`)
   and it is one word away. Works over Tailscale too.
+- **From any Unraid terminal with one word**, `claude-unraid`, after the
+  one-time setup below.
+
+The container does not install that command for you (a container should not
+put commands on its host). You add it once, as root in the Unraid terminal,
+and it survives reboots because `/boot/config/go` runs at every boot. Paste
+the lines exactly as shown, without leading spaces (the `EOF` line must start
+at the first column):
+
+```
+cat >> /boot/config/go <<'EOF'
+# claude-unraid: attach to the Claude Unraid Manager session
+printf '#!/bin/bash\nexec docker exec -it claude-unraid-manager bash\n' > /usr/local/bin/claude-unraid
+chmod +x /usr/local/bin/claude-unraid
+EOF
+printf '#!/bin/bash\nexec docker exec -it claude-unraid-manager bash\n' > /usr/local/bin/claude-unraid
+chmod +x /usr/local/bin/claude-unraid
+```
+
+The first block is for future boots, the last two lines create the command
+now. If you renamed the container, change `claude-unraid-manager` in both
+places.
 
 **Leaving the session without stopping Claude:** press `Ctrl-b`, release, then
 `d`. That detaches; Claude keeps running, and you land in a plain shell that

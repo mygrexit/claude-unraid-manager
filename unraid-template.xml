@@ -30,6 +30,7 @@ An Anthropic account: a claude.ai subscription (also needed for Remote Control) 
 2. Click the container in the Docker tab, then Console: you are in the Claude session.
 3. Log in once (URL in any browser, paste the code back). Leave the session with Ctrl-b, then d; it keeps running.
 4. Phone: open the Claude app, tap Code, pick this session. Sessions start in manual mode and ask before acting.
+5. Optional: a `claude-unraid` command in the Unraid terminal. Two lines in /boot/config/go, shown in the guide (step 4); the container does not write to your host for this.
 Full walkthrough: https://github.com/mygrexit/claude-unraid-manager/blob/main/docs/getting-started.md
 
 **Beta**

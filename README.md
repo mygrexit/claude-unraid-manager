@@ -78,6 +78,8 @@ Step by step, including console, login and phone:
    that does not exist makes Unraid create a new share there.
 3. Docker tab → click the container → **Console** and complete the login once
    (see [Attaching to the Session](#attaching-to-the-session)).
+4. Optional, recommended: a `claude-unraid` command in the Unraid terminal,
+   two lines in `/boot/config/go` (see [A host command](#a-host-command)).
 
 The image is `ghcr.io/mygrexit/claude-unraid-manager:beta`.
 
@@ -238,6 +240,31 @@ Three ways in, all ending in the same terminal:
    ssh -t root@<unraid-ip> docker exec -it claude-unraid-manager bash
    ```
 3. **Phone or browser:** Remote Control, see below.
+4. **A host command**, see next.
+
+### A host command
+
+Typing `claude-unraid` in any Unraid terminal (SSH, the web terminal, a
+console) drops you into the session. The container does not set this up for
+you, on purpose: a container should not install commands on its host. You add
+it once yourself, which also makes it persistent. Run this in the Unraid
+terminal as root:
+
+```bash
+cat >> /boot/config/go <<'EOF'
+# claude-unraid: attach to the Claude Unraid Manager session
+printf '#!/bin/bash\nexec docker exec -it claude-unraid-manager bash\n' > /usr/local/bin/claude-unraid
+chmod +x /usr/local/bin/claude-unraid
+EOF
+printf '#!/bin/bash\nexec docker exec -it claude-unraid-manager bash\n' > /usr/local/bin/claude-unraid
+chmod +x /usr/local/bin/claude-unraid
+```
+
+The first block appends two lines to `/boot/config/go`, which Unraid runs at
+every boot (everything outside `/boot` is rebuilt from RAM, so the command
+has to be recreated each time); the last two lines create it right now. If
+you named the container differently, change `claude-unraid-manager` in both
+places. When the container is stopped, the command says so.
 
 `Ctrl-b` then `d` detaches and leaves Claude running; closing the window does
 the same. From the detached shell, `tmux attach -t main` goes back in.
