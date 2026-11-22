@@ -53,7 +53,7 @@ WORKDIR /workspace
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
   CMD pgrep -x claude >/dev/null || exit 1
 
-LABEL org.opencontainers.image.source="https://github.com/mygrexit/claude-unraid-manager" \
+LABEL org.opencontainers.image.source="https://github.com/drxen00/claude-unraid-manager-plus" \
       org.opencontainers.image.description="Claude Code as an Unraid system manager" \
       org.opencontainers.image.licenses="MIT"
 

@@ -1,16 +1,16 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>claude-unraid-manager</Name>
-  <Repository>ghcr.io/mygrexit/claude-unraid-manager:beta</Repository>
+  <Repository>ghcr.io/drxen00/claude-unraid-manager-plus:beta</Repository>
   <Beta>true</Beta>
-  <Registry>https://github.com/mygrexit/claude-unraid-manager/pkgs/container/claude-unraid-manager</Registry>
+  <Registry>https://github.com/drxen00/claude-unraid-manager-plus/pkgs/container/claude-unraid-manager-plus</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>bash</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/mygrexit/claude-unraid-manager/issues</Support>
-  <Project>https://github.com/mygrexit/claude-unraid-manager</Project>
-  <ReadMe>https://github.com/mygrexit/claude-unraid-manager#readme</ReadMe>
+  <Support>https://github.com/drxen00/claude-unraid-manager-plus/issues</Support>
+  <Project>https://github.com/drxen00/claude-unraid-manager-plus</Project>
+  <ReadMe>https://github.com/drxen00/claude-unraid-manager-plus#readme</ReadMe>
   <License>MIT</License>
   <Overview>**For experienced Unraid users only. Careful: this app can do serious damage to your server if you don't know what you're doing.**
 
@@ -31,7 +31,7 @@ An Anthropic account: a claude.ai subscription (also needed for Remote Control) 
 3. Log in once (URL in any browser, paste the code back). Leave the session with Ctrl-b, then d; it keeps running.
 4. Phone: open the Claude app, tap Code, pick this session. Sessions start in manual mode and ask before acting.
 5. Optional: a `claude-unraid` command in the Unraid terminal. Two lines in /boot/config/go, shown in the guide (step 4); the container does not write to your host for this.
-Full walkthrough: https://github.com/mygrexit/claude-unraid-manager/blob/main/docs/getting-started.md
+Full walkthrough: https://github.com/drxen00/claude-unraid-manager-plus/blob/main/docs/getting-started.md
 
 **Beta**
 Tested on the author's two Unraid 7.3.3 servers (ZFS pool-only), not on a range of setups. It is an AI agent: its rules shape what it does, they do not guarantee it.
@@ -45,11 +45,11 @@ The Docker socket gives this container root-equivalent access to your server. Th
 ### 0.1.0-beta.7 (2026-10-15)
 - Fixes a way around the read-only flash drive for host commands: a MOUNTINFO variable set in the session shell could make `host` skip the read-only remount. `host` now ignores it.
 
-Older changes: https://github.com/mygrexit/claude-unraid-manager/releases
+Older changes: https://github.com/drxen00/claude-unraid-manager-plus/releases
 </Changes>
   <Category>Tools:System</Category>
   <WebUI/>
-  <TemplateURL>https://raw.githubusercontent.com/mygrexit/unraid-templates/main/templates/claude-unraid-manager.xml</TemplateURL>
+  <TemplateURL/>
   <Icon>https://raw.githubusercontent.com/mygrexit/unraid-templates/main/images/claude-unraid-manager.png</Icon>
   <ExtraParams>--hostname claude-unraid-manager</ExtraParams>
   <DonateText/>

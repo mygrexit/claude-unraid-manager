@@ -206,6 +206,6 @@ Code says so in the terminal shortly after start.
   output on screen.
 - Health shows *unhealthy*: the `claude` process is gone. Restart the
   container; if it repeats, open an issue with the log.
-- Anything else: [issues](https://github.com/mygrexit/claude-unraid-manager/issues),
+- Anything else: [issues](https://github.com/drxen00/claude-unraid-manager-plus/issues),
   with the container log and the `## Detected Environment` part of your
   `CLAUDE.md` (check it for anything you do not want to share first).

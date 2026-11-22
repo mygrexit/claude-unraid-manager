@@ -1,5 +1,10 @@
 # Claude Unraid Manager
 
+> Fork of [mygrexit/claude-unraid-manager](https://github.com/mygrexit/claude-unraid-manager)
+> that replaces the raw Docker socket with a filtering socket proxy and moves
+> host access to scoped, server-enforced paths. Work in progress on
+> `feat/socket-proxy`.
+
 [Claude Code](https://claude.com/claude-code) set up as an **Unraid
 administrator**, not as a coding tool: an always-on container in which Claude
 manages your containers, storage, VMs, plugins and configuration. It is meant
@@ -24,7 +29,7 @@ and parity, btrfs and XFS pools, systems without ZFS. The scanner has code
 paths for those, nobody has watched them run. And it is an AI agent: the
 rules in `CLAUDE.md` shape what Claude does, they do not guarantee it. Expect
 rough edges and report them in the
-[issues](https://github.com/mygrexit/claude-unraid-manager/issues).
+[issues](https://github.com/drxen00/claude-unraid-manager-plus/issues).
 
 ## What This Is For
 
@@ -81,7 +86,7 @@ Step by step, including console, login and phone:
 4. Optional, recommended: a `claude-unraid` command in the Unraid terminal,
    two lines in `/boot/config/go` (see [A host command](#a-host-command)).
 
-The image is `ghcr.io/mygrexit/claude-unraid-manager:beta`.
+The image is `ghcr.io/drxen00/claude-unraid-manager-plus:beta`.
 
 To build the image yourself instead, see
 [Building and Testing Locally](#building-and-testing-locally).
@@ -339,7 +344,7 @@ this container.
 # Settings → Docker, so no new share is created on systems that keep it elsewhere.
 APPDATA=$(sed -n 's/^DOCKER_APP_CONFIG_PATH="\(.*\)"$/\1/p' /boot/config/docker.cfg)
 APPDATA=${APPDATA%/}; APPDATA=${APPDATA:-/mnt/user/appdata}
-cd "$APPDATA" && git clone https://github.com/mygrexit/claude-unraid-manager.git claude-unraid-manager-src
+cd "$APPDATA" && git clone https://github.com/drxen00/claude-unraid-manager-plus.git claude-unraid-manager-src
 docker build -t claude-unraid-manager:local claude-unraid-manager-src
 # Point the template at the local image instead of GHCR:
 sed 's#<Repository>.*</Repository>#<Repository>claude-unraid-manager:local</Repository>#' \
