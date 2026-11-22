@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>claude-docker-proxy</Name>
+  <Repository>ghcr.io/wollomatic/socket-proxy:1.14.0@sha256:b9e5b7e320287ea329229c9cbe9c2f78492befe408c4510c6c76cd897696fa88</Repository>
+  <Registry>https://github.com/wollomatic/socket-proxy/pkgs/container/socket-proxy</Registry>
+  <Network>none</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/drxen00/claude-unraid-manager-plus/issues</Support>
+  <Project>https://github.com/wollomatic/socket-proxy</Project>
+  <ReadMe>https://github.com/drxen00/claude-unraid-manager-plus#socket-proxy</ReadMe>
+  <License>MIT</License>
+  <Overview>Filtering Docker socket proxy for claude-unraid-manager (wollomatic/socket-proxy, pinned by digest).
+
+It holds the real Docker socket and passes on only an allowlist of Docker API requests: listing and inspecting containers and images, reading logs and stats, and starting, stopping and restarting containers. Everything else (exec, creating or removing containers, pulls, builds, volumes, networks, copying files out of containers) is refused with 403.
+
+It has no network at all: it serves the filtered socket as a file in /var/run/claude-docker-proxy, which only claude-unraid-manager mounts. Install and start this container first.
+
+The allowlists below are the security boundary. Change them only if you know which Docker API calls you are allowing.</Overview>
+  <Category>Tools:System</Category>
+  <WebUI/>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/mygrexit/unraid-templates/main/images/claude-unraid-manager.png</Icon>
+  <ExtraParams>--read-only --cap-drop ALL --security-opt no-new-privileges --user 0:0 --memory 64m</ExtraParams>
+  <PostArgs/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Start before claude-unraid-manager.</Requires>
+  <Config Name="Docker Socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="ro" Description="The real Docker socket. Only this container mounts it." Type="Path" Display="always" Required="true" Mask="false">/var/run/docker.sock</Config>
+  <Config Name="Proxy Socket Directory" Target="/socket" Default="/var/run/claude-docker-proxy" Mode="rw" Description="Where the filtered socket is created (RAM, recreated on every start). claude-unraid-manager mounts the same host directory read-only." Type="Path" Display="always" Required="true" Mask="false">/var/run/claude-docker-proxy</Config>
+  <Config Name="Proxy socket path" Target="SP_PROXYSOCKETENDPOINT" Default="/socket/docker.sock" Mode="" Description="Serve the filtered API on this unix socket instead of a TCP port." Type="Variable" Display="advanced" Required="true" Mask="false">/socket/docker.sock</Config>
+  <Config Name="Proxy socket mode" Target="SP_PROXYSOCKETENDPOINTFILEMODE" Default="0600" Mode="" Description="File mode of the filtered socket. 0600: only root (claude-unraid-manager runs as root) can connect." Type="Variable" Display="advanced" Required="true" Mask="false">0600</Config>
+  <Config Name="Allowed GET requests" Target="SP_ALLOW_GET" Default="(/v1\.[0-9]+)?/(_ping|version|info|events|containers/json|images/json|containers/[a-zA-Z0-9][a-zA-Z0-9_.-]*/(json|logs|stats|top)|images/[a-zA-Z0-9][a-zA-Z0-9_.:@-]*(/[a-zA-Z0-9][a-zA-Z0-9_.:@-]*)*/json)" Mode="" Description="Regex, anchored automatically. Container list/inspect/logs/stats/top, image list/inspect, version, info, events. Not allowed: archive and export (they copy files out of containers)." Type="Variable" Display="advanced" Required="true" Mask="false">(/v1\.[0-9]+)?/(_ping|version|info|events|containers/json|images/json|containers/[a-zA-Z0-9][a-zA-Z0-9_.-]*/(json|logs|stats|top)|images/[a-zA-Z0-9][a-zA-Z0-9_.:@-]*(/[a-zA-Z0-9][a-zA-Z0-9_.:@-]*)*/json)</Config>
+  <Config Name="Allowed HEAD requests" Target="SP_ALLOW_HEAD" Default="(/v1\.[0-9]+)?/_ping" Mode="" Description="The Docker CLI pings with HEAD before every command." Type="Variable" Display="advanced" Required="true" Mask="false">(/v1\.[0-9]+)?/_ping</Config>
+  <Config Name="Allowed POST requests" Target="SP_ALLOW_POST" Default="(/v1\.[0-9]+)?/containers/[a-zA-Z0-9][a-zA-Z0-9_.-]*/(start|stop|restart)" Mode="" Description="Start, stop and restart of existing containers. Nothing else: no create, exec, kill, update or prune." Type="Variable" Display="advanced" Required="true" Mask="false">(/v1\.[0-9]+)?/containers/[a-zA-Z0-9][a-zA-Z0-9_.-]*/(start|stop|restart)</Config>
+  <Config Name="Log level" Target="SP_LOGLEVEL" Default="INFO" Mode="" Description="INFO logs every refused request. DEBUG also logs allowed ones." Type="Variable" Display="advanced" Required="false" Mask="false">INFO</Config>
+</Container>

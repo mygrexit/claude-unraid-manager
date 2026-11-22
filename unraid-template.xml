@@ -18,15 +18,15 @@ Claude Code set up as an Unraid administrator, not as a coding tool: an AI assis
 
 **What it does**
 - Scans your storage (ZFS, btrfs, array), containers, VMs, plugins, User Scripts and network on every start and writes a CLAUDE.md so Claude knows your server.
-- Manages containers via the Docker socket and runs host commands through a short-lived helper container. No privileged mode needed.
+- Reaches Docker only through the claude-docker-proxy container: it can list, inspect, read logs of, start, stop and restart containers, and the proxy refuses everything else (exec, create, remove, pull, volumes, networks). No raw Docker socket, no privileged mode.
 - Safe defaults: boot drive read-only, no shares mounted. Opt in to more access as needed.
 - Risky commands (downloads piped to a shell, network tools, deletes, writes to the flash drive) always ask for your approval with a reason, whatever the mode; disk formatting and wipes are blocked outright.
 
 **Requirements**
-An Anthropic account: a claude.ai subscription (also needed for Remote Control) or a Console API key.
+An Anthropic account: a claude.ai subscription (also needed for Remote Control) or a Console API key. The claude-docker-proxy container (unraid-template-socket-proxy.xml in the repository), installed and started first.
 
 **Setup**
-1. Apply this template with the default mounts (adjust the two appdata paths if yours is not /mnt/user/appdata).
+1. Install claude-docker-proxy and start it. Then apply this template with the default mounts (adjust the two appdata paths if yours is not /mnt/user/appdata).
 2. Click the container in the Docker tab, then Console: you are in the Claude session.
 3. Log in once (URL in any browser, paste the code back). Leave the session with Ctrl-b, then d; it keeps running.
 4. Phone: open the Claude app, tap Code, pick this session. Sessions start in manual mode and ask before acting.
@@ -37,8 +37,11 @@ Full walkthrough: https://github.com/drxen00/claude-unraid-manager-plus/blob/mai
 Tested on the author's two Unraid 7.3.3 servers (ZFS pool-only), not on a range of setups. It is an AI agent: its rules shape what it does, they do not guarantee it.
 
 **Warning**
-The Docker socket gives this container root-equivalent access to your server. The guard rails reduce accidents but are not a security boundary. If you would not do the same work yourself on the Unraid command line, do not install this. Review every action before confirming. Keep backups. The author accepts no liability for data loss or misconfiguration.</Overview>
+Behind the socket proxy this container cannot create containers or run host commands; the proxy's allowlist is the boundary. Mounting the raw Docker socket instead (opt-in, see the README) makes it root-equivalent on your server, and then the guard rails reduce accidents but are not a security boundary. If you would not do the same work yourself on the Unraid command line, do not install this. Review every action before confirming. Keep backups. The author accepts no liability for data loss or misconfiguration.</Overview>
   <Changes>
+### Unreleased (fork)
+- Docker access goes through a filtering socket proxy (claude-docker-proxy) instead of the raw socket. `host` is unavailable in this mode.
+
 ### 0.1.0-beta.8 (2026-10-15)
 - Guard: cron and `at` entries, and `emcmd` (Unraid's web-API command), made through `host` ask first; they would run outside the read-only view of the flash drive. `busybox` and `smbclient` are recognised like `mount` and the other network tools.
 
@@ -54,10 +57,11 @@ Older changes: https://github.com/drxen00/claude-unraid-manager-plus/releases
   <ExtraParams>--hostname claude-unraid-manager</ExtraParams>
   <DonateText/>
   <DonateLink/>
-  <Requires>An Anthropic account (claude.ai subscription or Console API key) and access to the Docker socket. For experienced Unraid users only.</Requires>
+  <Requires>An Anthropic account (claude.ai subscription or Console API key) and the claude-docker-proxy container. For experienced Unraid users only.</Requires>
   <Config Name="Data (login, settings, history)" Target="/root" Default="/mnt/user/appdata/claude-unraid-manager/home" Mode="rw" Description="Persisted home directory. Holds .claude/ (settings, history) and .claude.json (login). Must survive container rebuilds. Tip: a cache-only (exclusive) appdata share avoids FUSE overhead for the many small history writes." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/claude-unraid-manager/home</Config>
   <Config Name="Workspace" Target="/workspace" Default="/mnt/user/appdata/claude-unraid-manager/workspace" Mode="rw" Description="Working directory. CLAUDE.md is auto-generated here on every start." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/claude-unraid-manager/workspace</Config>
-  <Config Name="Docker Socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="rw" Description="Required for container management and host command execution. Without this, Claude is just a code editor." Type="Path" Display="always" Required="true" Mask="false">/var/run/docker.sock</Config>
+  <Config Name="Docker Proxy Socket" Target="/run/docker-proxy" Default="/var/run/claude-docker-proxy" Mode="ro" Description="Directory with the filtered Docker socket that the claude-docker-proxy container creates. Install and start that container first. The raw /var/run/docker.sock is deliberately not mounted here." Type="Path" Display="always" Required="true" Mask="false">/var/run/claude-docker-proxy</Config>
+  <Config Name="Docker Host" Target="DOCKER_HOST" Default="unix:///run/docker-proxy/docker.sock" Mode="" Description="Where the Docker CLI connects: the proxy socket. Leave as is." Type="Variable" Display="advanced" Required="true" Mask="false">unix:///run/docker-proxy/docker.sock</Config>
   <Config Name="Unraid Boot Config" Target="/host/boot" Default="/boot" Mode="ro" Description="Read-only: view plugins, templates, share configs, startup script. The flash drive is then read-only for Claude everywhere, host commands included. Change to rw to let Claude modify Unraid configuration; commands touching the flash drive should then ask first." Type="Path" Display="always" Required="false" Mask="false">/boot</Config>
   <Config Name="Timezone" Target="TZ" Default="UTC" Mode="" Description="Your timezone (e.g. America/New_York, Europe/Berlin)." Type="Variable" Display="always" Required="false" Mask="false">UTC</Config>
   <Config Name="Language" Target="CLAUDE_LANG" Default="" Mode="" Description="Response language (e.g. de, fr, es, nl). Empty = English." Type="Variable" Display="always" Required="false" Mask="false"></Config>
