@@ -1,5 +1,10 @@
 # Claude Unraid Manager
 
+> Fork of [mygrexit/claude-unraid-manager](https://github.com/mygrexit/claude-unraid-manager)
+> that replaces the raw Docker socket with a filtering socket proxy and moves
+> host access to scoped, server-enforced paths. Work in progress on
+> `feat/socket-proxy`.
+
 [Claude Code](https://claude.com/claude-code) set up as an **Unraid
 administrator**, not as a coding tool: an always-on container in which Claude
 manages your containers, storage, VMs, plugins and configuration. It is meant
@@ -24,7 +29,7 @@ and parity, btrfs and XFS pools, systems without ZFS. The scanner has code
 paths for those, nobody has watched them run. And it is an AI agent: the
 rules in `CLAUDE.md` shape what Claude does, they do not guarantee it. Expect
 rough edges and report them in the
-[issues](https://github.com/mygrexit/claude-unraid-manager/issues).
+[issues](https://github.com/drxen00/claude-unraid-manager-plus/issues).
 
 ## What This Is For
 
@@ -69,28 +74,34 @@ to investigate and, ideally after you confirm, to fix things.
 Step by step, including console, login and phone:
 **[docs/getting-started.md](docs/getting-started.md)**. The short version:
 
-1. Unraid web UI → **Apps** → search for *claude-unraid-manager* → **Install**
-   (it is marked as beta).
-2. Review the mounts (boot drive read-only, no shares by default) and apply.
+1. Install the socket proxy first: copy `unraid-template-socket-proxy.xml`
+   to `/boot/config/plugins/dockerMan/templates-user/my-claude-docker-proxy.xml`,
+   then Docker tab → **Add Container** → pick *claude-docker-proxy* → **Apply**.
+   See [Socket proxy](#socket-proxy).
+2. Same for `unraid-template.xml` (as `my-claude-unraid-manager.xml`). This
+   fork is not in Community Applications; the Apps tab installs upstream.
+   Review the mounts (boot drive read-only, no shares by default) and apply.
    The two appdata paths default to `/mnt/user/appdata/…` like every Unraid
    template; if your appdata lives elsewhere (for example
    `/mnt/cache/appdata`), change them here: touching a path under `/mnt/user`
    that does not exist makes Unraid create a new share there.
-3. Docker tab → click the container → **Console** and complete the login once
+3. Docker tab → click claude-unraid-manager → **Console** and complete the login once
    (see [Attaching to the Session](#attaching-to-the-session)).
-4. Optional, recommended: a `claude-unraid` command in the Unraid terminal,
+4. Optional: a `claude-unraid` command in the Unraid terminal,
    two lines in `/boot/config/go` (see [A host command](#a-host-command)).
 
-The image is `ghcr.io/mygrexit/claude-unraid-manager:beta`.
+The image is `ghcr.io/drxen00/claude-unraid-manager-plus:beta`.
 
 To build the image yourself instead, see
 [Building and Testing Locally](#building-and-testing-locally).
 
 ## How It Works
 
-The container uses the Docker socket to manage containers and to run host-level commands (like `zpool status` or `virsh list`) through a `host` wrapper. `host <command>` starts a short-lived privileged helper container (`alpine`) that enters the host's namespaces and runs the command there. The main container itself does **not** need privileged mode.
+The container reaches Docker through a filtering socket proxy, a second container that holds the real socket and passes on only an allowlist of API calls (see [Socket proxy](#socket-proxy)). Claude can list, inspect and read logs of containers, and start, stop and restart them; nothing else.
 
-On every start, a discovery script scans the host and generates a `CLAUDE.md` in the workspace with:
+With the raw Docker socket mounted instead (opt-in, not the default), it can also run host-level commands (like `zpool status` or `virsh list`) through a `host` wrapper: `host <command>` starts a short-lived privileged helper container (`alpine`) that enters the host's namespaces and runs the command there. Behind the proxy `host` is unavailable, and the host details below are missing from the scan until host reads move to a restricted path (planned: the Unraid API and an SSH forced command).
+
+On every start (full detail only with the raw socket), a discovery script scans the host and generates a `CLAUDE.md` in the workspace with:
 - System info (Unraid version, CPU, RAM)
 - Storage topology (pools, datasets, array state, shares, encrypted datasets)
 - Running containers and their status
@@ -102,7 +113,18 @@ Claude reads this file at the start of a session and should work from it. The sc
 
 ## Security Model
 
-**The Docker socket is equivalent to root access on the host.** Any container
+What each layer actually enforces:
+
+| Layer | Enforced by | Boundary? |
+|---|---|---|
+| Socket proxy allowlist | the proxy container, outside Claude's container | **Yes**: a refused API call never reaches Docker |
+| Proxy has no network, its socket is only mounted into this container | Docker (`--network none`, bind mounts) | **Yes** |
+| `/host/boot` read-only, no shares mounted | Docker bind mounts | **Yes behind the proxy** (nothing can start a container that mounts more); **no** with the raw socket |
+| Permission prompts | Claude Code, inside the container | No: a setting Claude's own user can change |
+| `claude-guard` hook | text match on the command | No: variables or a script written first get past it |
+| `CLAUDE.md` rules | the model | No |
+
+**The raw Docker socket is equivalent to root access on the host.** Any container
 with the socket can start a privileged container that reaches the entire
 filesystem, all processes, and all data — regardless of what mounts this
 template configures. This is not specific to this project; it applies equally
@@ -110,14 +132,50 @@ to Portainer, Dockge, Yacht, and every other Docker management tool.
 
 The mount restrictions below are **behavioral guardrails**: they control what
 Claude naturally discovers and works with. They are not security boundaries.
-If you need a hard boundary, do not mount the Docker socket — but then Claude
-cannot manage containers or run host commands, which is the entire point.
+That is why the default is the proxy. Mounting the raw socket is an explicit
+opt-in for sessions that need `host`, and it gives up the proxy boundary:
+with both mounted, `DOCKER_HOST= docker …` reaches the daemon unfiltered, and
+the start log says so.
+
+### Socket proxy
+
+[wollomatic/socket-proxy](https://github.com/wollomatic/socket-proxy) 1.14.0,
+pinned by digest, configured entirely by `unraid-template-socket-proxy.xml`:
+
+- **Allowed:** `GET` container list, inspect, logs, stats, top; image list
+  and inspect; version, info, events, ping. `POST` start, stop, restart of an
+  existing container. `HEAD` ping.
+- **Refused (403/405):** everything else, notably exec, create/run, rm,
+  kill, update, rename, commit, prune, pull, build, push, volumes, networks,
+  swarm, and `archive`/`export` (they copy files out of containers).
+  Regexes are anchored by the proxy; container IDs must start with a letter or
+  digit, so `..` path segments cannot match.
+- **Reachability:** `--network none`. It serves the filtered API as a unix
+  socket in `/var/run/claude-docker-proxy` on the host (RAM, recreated each
+  start, mode 0600). Only claude-unraid-manager mounts that directory, read-only.
+  Per-container label allowlists are disabled in unix-socket mode, so no other
+  container can grant itself access.
+- **Hardening:** `--read-only --cap-drop ALL --security-opt no-new-privileges
+  --memory 64m`. It runs as uid 0 without capabilities because the Docker
+  socket and the socket directory are owned by root.
+- **Still visible through it:** `docker inspect` returns each container's
+  environment variables (passwords, API keys) and `docker logs` whatever an
+  app logs. The proxy cannot redact responses.
+- **Tested:** `tests/proxy-acceptance.sh` starts the proxy exactly as the
+  template defines it and checks every allowed and refused call above against
+  a real Docker daemon in CI, then that nothing changed.
+
+To widen it (for example to allow `docker pull`), edit the *Allowed …*
+variables in the claude-docker-proxy template. They are the boundary: anything
+you add there, Claude can do without a way around it, and anything else it
+cannot.
 
 ## Access Control
 
 | Mount | Default | What it enables |
 |-------|---------|----------------|
-| Docker socket | mounted (rw) | Container management, host command execution |
+| Docker proxy socket (`/run/docker-proxy`) | mounted (ro) | List, inspect, logs, start/stop/restart of containers; enforced by the proxy |
+| Raw Docker socket | **not mounted** | Opt-in: add `/var/run/docker.sock` as a Path to get `host` and full container management; root-equivalent, and it bypasses the proxy |
 | `/host/boot` | **read-only** | View Unraid config, plugins, templates. The flash drive is read-only for Claude in the container by the mount, and for `host …` commands because they run with `/boot` remounted read-only in their own mount namespace: an ordinary write fails with "Read-only file system", whatever the command. Host commands still run as root, so one that remounts or re-enters namespaces, or hands the write to a host daemon (cron, `at`, `emcmd`, SMB, the web API) or to another container that already mounts `/boot`, gets around it; the guard asks before the common forms (cron/`at`, `emcmd`, `curl`, `smbclient`), not before `docker exec` into such a container |
 | `/host/boot` (rw) | opt-in | Modify config, install plugins, edit templates; commands that touch the flash drive should ask you first, with a reason (text match, so not every spelling) |
 | `/appdata` | not mounted | Inspect other containers' configs and logs |
@@ -339,7 +397,7 @@ this container.
 # Settings → Docker, so no new share is created on systems that keep it elsewhere.
 APPDATA=$(sed -n 's/^DOCKER_APP_CONFIG_PATH="\(.*\)"$/\1/p' /boot/config/docker.cfg)
 APPDATA=${APPDATA%/}; APPDATA=${APPDATA:-/mnt/user/appdata}
-cd "$APPDATA" && git clone https://github.com/mygrexit/claude-unraid-manager.git claude-unraid-manager-src
+cd "$APPDATA" && git clone https://github.com/drxen00/claude-unraid-manager-plus.git claude-unraid-manager-src
 docker build -t claude-unraid-manager:local claude-unraid-manager-src
 # Point the template at the local image instead of GHCR:
 sed 's#<Repository>.*</Repository>#<Repository>claude-unraid-manager:local</Repository>#' \

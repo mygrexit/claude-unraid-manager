@@ -33,6 +33,21 @@ if [ $# -eq 0 ]; then
   exit 64
 fi
 
+# The helper is a privileged container, so `host` needs the raw socket. Behind
+# the socket proxy, creating containers is refused by design; say so instead
+# of surfacing a bare "Forbidden" from docker run.
+case "$("$(dirname "$0")/docker-mode")" in
+  full) ;;
+  proxy)
+    echo "host: not available. Docker is reached through the socket proxy, which refuses" >&2
+    echo "host: creating containers, and host commands run in a privileged helper container." >&2
+    echo "host: This is the configured boundary, not a fault; do not look for another route." >&2
+    exit 69 ;;
+  *)
+    echo "host: not available. No Docker socket is mounted." >&2
+    exit 69 ;;
+esac
+
 if [ "$("$(dirname "$0")/boot-mode")" = "rw" ]; then
   exec docker run --rm -i --privileged --pid=host "$IMAGE" \
     nsenter -t 1 -m -u -i -n -p -- "$@"

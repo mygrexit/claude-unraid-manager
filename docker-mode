@@ -1,0 +1,32 @@
+#!/bin/bash
+# docker-mode — how this container reaches Docker. Prints one word:
+#
+#   full   the raw socket is mounted (/var/run/docker.sock): root-equivalent
+#          on the host, `host` works
+#   proxy  DOCKER_HOST points at the unix socket of the filtering socket proxy
+#          (unraid-template-socket-proxy.xml) and no raw socket is mounted
+#   none   neither is available (yet)
+#
+# A raw socket wins over the proxy even when DOCKER_HOST is set: with the raw
+# socket mounted, `DOCKER_HOST= docker …` reaches the daemon unfiltered, so
+# the proxy is no boundary and the honest answer is "full".
+# DOCKER_SOCK overrides the raw socket path (tests).
+set -uo pipefail
+
+raw="${DOCKER_SOCK:-/var/run/docker.sock}"
+
+if [ -S "$raw" ]; then
+  echo full
+  exit 0
+fi
+
+case "${DOCKER_HOST:-}" in
+  unix://*)
+    if [ -S "${DOCKER_HOST#unix://}" ]; then
+      echo proxy
+      exit 0
+    fi
+    ;;
+esac
+
+echo none

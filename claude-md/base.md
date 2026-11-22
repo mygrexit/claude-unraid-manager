@@ -68,17 +68,25 @@ the user, the system, or Unraid.
 
 ## Security Model
 
-The Docker socket grants **full root access** to the host. Any container with
-the socket can start a privileged container that reaches the entire filesystem,
-all processes, and all data — regardless of what bind mounts this container has.
+What this container can do depends on how it reaches Docker. The "Docker
+Access" section below says which of the two applies.
 
-The mount restrictions in this template (read-only boot drive, no shares mounted)
-are **behavioral guardrails, not security boundaries**. They control what you
-naturally see and work with, but they do not prevent escalation. Treat the
-Docker socket as the trust boundary: if it is mounted, this container has the
-same power as a root shell on the host.
+- **Through the socket proxy (the default):** the proxy, a separate
+  container, allows reading container state and logs and starting, stopping
+  and restarting containers, and refuses everything else. That limit is
+  enforced outside this container; it is a real boundary.
+- **Raw Docker socket (opt-in):** grants **full root access** to the host.
+  Any container with the socket can start a privileged container that reaches
+  the entire filesystem, all processes, and all data, regardless of what bind
+  mounts this container has.
 
-**Only the safety rules above and the user's own judgment protect the system.**
+The mount restrictions in this template (read-only boot drive, no shares
+mounted) are **behavioral guardrails, not security boundaries** while the raw
+socket is mounted. Behind the proxy, they hold: nothing here can start a
+container that mounts more.
+
+**Beyond what the proxy refuses, only the safety rules above and the user's
+own judgment protect the system.**
 
 ## Container / Host Path Context
 

@@ -2,6 +2,8 @@
 # Exercises generate-claude-md.sh and claude-guard without Docker or Unraid.
 # A fake `docker` on PATH answers the host scan and `docker ps`.
 set -euo pipefail
+# A DOCKER_HOST from the calling shell would switch the scripts to proxy mode.
+unset DOCKER_HOST
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 TMP=$(mktemp -d)
@@ -16,8 +18,8 @@ expect_not_contains() { if grep -qF -- "$2" "$1"; then fail "unexpected: $2"; el
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 mkdir -p "$TMP/bin" "$TMP/share"
 cp -r "$ROOT/claude-md" "$TMP/share/"
-cp "$ROOT/host" "$TMP/bin/host"
-chmod +x "$TMP/bin/host"
+cp "$ROOT/host" "$ROOT/docker-mode" "$TMP/bin/"
+chmod +x "$TMP/bin/host" "$TMP/bin/docker-mode"
 
 cat > "$TMP/bin/docker" <<'EOF'
 #!/bin/bash
@@ -49,6 +51,11 @@ chmod +x "$TMP/bin/docker"
 
 # [ -S ] needs a real socket inode; bind() leaves one behind.
 python3 -I - "$TMP/docker.sock" <<'EOF'
+import socket, sys
+socket.socket(socket.AF_UNIX).bind(sys.argv[1])
+EOF
+# The socket proxy's endpoint, for proxy mode.
+python3 -I - "$TMP/proxy.sock" <<'EOF'
 import socket, sys
 socket.socket(socket.AF_UNIX).bind(sys.argv[1])
 EOF
@@ -219,11 +226,25 @@ expect_not_contains "$TMP/CLAUDE.md" "Unraid unknown"
 echo "scanner: no docker socket"
 rm -f "$TMP/CLAUDE.md"
 DOCKER_SOCK_OVERRIDE="$TMP/does-not-exist" run_generator
-expect_contains "$TMP/CLAUDE.md" "No Docker socket mounted"
+expect_contains "$TMP/CLAUDE.md" "No Docker access"
 expect_contains "$TMP/CLAUDE.md" "Host shares that are not in this table"
 expect_not_contains "$TMP/CLAUDE.md" "under **Shares** above"
 expect_not_contains "$TMP/CLAUDE.md" "and the Docker socket"
 expect_contains "$TMP/CLAUDE.md" "| \`/photos\` | read-write |"
+expect_contains "$TMP/CLAUDE.md" "## Custom"
+
+# ── Scanner: through the socket proxy ────────────────────────────────────────
+echo "scanner: socket proxy"
+rm -f "$TMP/CLAUDE.md"
+write_scan "net:[1]"
+DOCKER_SOCK_OVERRIDE="$TMP/does-not-exist" DOCKER_HOST="unix://$TMP/proxy.sock" run_generator
+expect_contains "$TMP/CLAUDE.md" "Docker Access (through the socket proxy)"
+expect_contains "$TMP/CLAUDE.md" "- plex (plexinc/pms-docker, Up 3 days)"
+expect_contains "$TMP/CLAUDE.md" "### Containers (2 total)"
+expect_not_contains "$TMP/CLAUDE.md" "Host scan failed"          # host is not even tried
+expect_not_contains "$TMP/CLAUDE.md" "Unraid 7.0.1"
+expect_not_contains "$TMP/CLAUDE.md" "Docker socket is mounted"
+expect_not_contains "$TMP/CLAUDE.md" "No Docker access"
 expect_contains "$TMP/CLAUDE.md" "## Custom"
 
 # ── Scanner: unreadable mountinfo must not truncate the file ─────────────────
@@ -492,14 +513,31 @@ if [ "$(MOUNTINFO="$TMP/mountinfo-noboot" bash "$ROOT/boot-mode")" = none ]; the
 if [ "$(MOUNTINFO="$TMP/no-such-file" bash "$ROOT/boot-mode")" = unknown ]; then pass "boot-mode: unknown"; else fail "boot-mode unknown"; fi
 # host: an inherited MOUNTINFO (e.g. exported in the session shell) must not
 # skip the read-only remount. The fake docker just echoes its arguments.
-mkdir -p "$TMP/hostbin"; cp "$ROOT/host" "$ROOT/boot-mode" "$TMP/hostbin/"
+mkdir -p "$TMP/hostbin"; cp "$ROOT/host" "$ROOT/boot-mode" "$ROOT/docker-mode" "$TMP/hostbin/"
 cat > "$TMP/hostbin/docker" <<'FAKE'
 #!/bin/sh
 echo "$@"
 FAKE
 chmod +x "$TMP/hostbin/docker"
-out=$(MOUNTINFO="$TMP/mountinfo-boot-rw" PATH="$TMP/hostbin:$PATH" bash "$TMP/hostbin/host" true)
+out=$(DOCKER_SOCK="$TMP/docker.sock" MOUNTINFO="$TMP/mountinfo-boot-rw" PATH="$TMP/hostbin:$PATH" bash "$TMP/hostbin/host" true)
 case "$out" in *"remount,bind,ro /boot"*) pass "host: ignores inherited MOUNTINFO" ;; *) fail "host: MOUNTINFO skipped the remount: $out" ;; esac
+
+echo "docker-mode and host behind the proxy"
+dm() { env -u DOCKER_HOST "$@" bash "$ROOT/docker-mode"; }
+if [ "$(dm DOCKER_SOCK="$TMP/docker.sock")" = full ]; then pass "docker-mode: full"; else fail "docker-mode full"; fi
+if [ "$(dm DOCKER_SOCK="$TMP/nope" DOCKER_HOST="unix://$TMP/proxy.sock")" = proxy ]; then pass "docker-mode: proxy"; else fail "docker-mode proxy"; fi
+if [ "$(dm DOCKER_SOCK="$TMP/nope" DOCKER_HOST="unix://$TMP/nope.sock")" = none ]; then pass "docker-mode: proxy socket missing"; else fail "docker-mode missing proxy socket"; fi
+if [ "$(dm DOCKER_SOCK="$TMP/nope" DOCKER_HOST="tcp://127.0.0.1:2375")" = none ]; then pass "docker-mode: tcp is not the proxy"; else fail "docker-mode tcp"; fi
+if [ "$(dm DOCKER_SOCK="$TMP/nope")" = none ]; then pass "docker-mode: none"; else fail "docker-mode none"; fi
+# Raw socket and proxy together: the raw socket bypasses the proxy, so "full".
+if [ "$(dm DOCKER_SOCK="$TMP/docker.sock" DOCKER_HOST="unix://$TMP/proxy.sock")" = full ]; then pass "docker-mode: raw socket wins"; else fail "docker-mode raw+proxy"; fi
+set +e
+out=$(DOCKER_SOCK="$TMP/nope" DOCKER_HOST="unix://$TMP/proxy.sock" PATH="$TMP/hostbin:$PATH" bash "$TMP/hostbin/host" uptime 2>&1)
+status=$?
+set -e
+if [ "$status" -eq 69 ]; then pass "host: exit 69 behind the proxy"; else fail "host: exit $status behind the proxy"; fi
+case "$out" in *"socket proxy"*) pass "host: names the proxy" ;; *) fail "host: message: $out" ;; esac
+case "$out" in *"--privileged"*) fail "host: ran docker behind the proxy" ;; *) pass "host: did not call docker" ;; esac
 
 echo "guard: still silent for everyday commands"
 expect_allowed 'logs plex'

@@ -12,6 +12,8 @@ SHARE="${CLAUDE_MD_SHARE:-/usr/local/share/claude-unraid-manager}"
 BASE="$SHARE/claude-md/base.md"
 SNIP="$SHARE/claude-md/snippets"
 DOCKER_SOCK="${DOCKER_SOCK:-/var/run/docker.sock}"
+# full (raw socket), proxy (filtering socket proxy) or none; see docker-mode.
+DOCKER_MODE=$(DOCKER_SOCK="$DOCKER_SOCK" docker-mode 2>/dev/null || echo none)
 MARKER_START="## Detected Environment"
 MARKER_CUSTOM="## Custom"
 
@@ -82,6 +84,22 @@ lines() { get "$1" | tr '|' '\n' | sed '/^$/d'; }
 # A ","-joined value as "a, b, c".
 csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
 
+# Container snapshot; `docker ps` works with the raw socket and through the proxy.
+list_containers() {
+  local containers count
+  containers=$(docker ps -a --format '- {{.Names}} ({{.Image}}, {{.Status}})' 2>/dev/null || true)
+  count=$(printf '%s' "$containers" | grep -c . || true)
+  echo "### Containers (${count} total)"
+  echo ""
+  printf '%s\n' "$containers" | head -40
+  if [ "$count" -gt 40 ]; then
+    echo "- … and $((count - 40)) more (list truncated; use \`docker ps -a\` for all)"
+  fi
+  echo ""
+  echo "_Snapshot from container start: names, images and status only. Use \`docker ps -a\`, \`docker inspect <name>\` and \`docker logs <name>\` for current state and details._"
+  echo ""
+}
+
 # ── Discovery scan ───────────────────────────────────────────────────────────
 {
   echo ""
@@ -90,7 +108,11 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
   echo "_Auto-generated on $(date '+%Y-%m-%d %H:%M'). Do not edit — this section is refreshed on every container start._"
   echo ""
 
-  if [ -S "$DOCKER_SOCK" ]; then
+  if [ "$DOCKER_MODE" = proxy ]; then
+    cat "$SNIP/docker-proxy.md"
+    echo ""
+    list_containers
+  elif [ "$DOCKER_MODE" = full ]; then
     cat "$SNIP/docker-socket.md"
 
     SCAN=$(host sh -c "$SCAN_SCRIPT" 2>/dev/null) || SCAN=""
@@ -199,17 +221,7 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
     fi
 
     # ── Docker containers ────────────────────────────────────────────────────
-    CONTAINERS=$(docker ps -a --format '- {{.Names}} ({{.Image}}, {{.Status}})' 2>/dev/null || true)
-    CONTAINER_COUNT=$(printf '%s' "$CONTAINERS" | grep -c . || true)
-    echo "### Containers (${CONTAINER_COUNT} total)"
-    echo ""
-    printf '%s\n' "$CONTAINERS" | head -40
-    if [ "$CONTAINER_COUNT" -gt 40 ]; then
-      echo "- … and $((CONTAINER_COUNT - 40)) more (list truncated; use \`docker ps -a\` for all)"
-    fi
-    echo ""
-    echo "_Snapshot from container start: names, images and status only. Use \`docker ps -a\`, \`docker inspect <name>\` and \`docker logs <name>\` for current state and details._"
-    echo ""
+    list_containers
 
     if [ -n "$SCAN" ]; then
       # ── VMs ────────────────────────────────────────────────────────────────
@@ -285,8 +297,8 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
     fi
 
   else
-    echo "**No Docker socket mounted.** Cannot manage containers or scan the host."
-    echo "Add a Path mount for \`/var/run/docker.sock\` in the Docker template."
+    echo "**No Docker access.** Cannot see containers or scan the host."
+    echo "Expected: the claude-docker-proxy container running, and its socket directory mounted at \`/run/docker-proxy\` (see the template). Tell the user to check that container in the Docker tab."
     echo ""
   fi
 
@@ -320,7 +332,8 @@ csv()   { get "$1" | sed 's/,$//; s/,/, /g'; }
     awk -v ro="$RO_RE" '{
       mp = $5
       if (mp == "/" || mp ~ "^/(proc|sys|dev)(/|$)" || mp ~ "^/etc/(hosts|hostname|resolv\\.conf)$" ||
-          mp == "/root" || mp ~ "^/root/" || mp == "/workspace" || mp ~ "docker\\.sock$") next
+          mp == "/root" || mp ~ "^/root/" || mp == "/workspace" || mp ~ "docker\\.sock$" ||
+          mp == "/run/docker-proxy") next
       print mp, (($6 ~ ro || $NF ~ ro) ? "read-only" : "read-write")
     }' "$MOUNTINFO" 2>/dev/null | tac | awk '!seen[$1]++' | LC_ALL=C sort \
       | awk '{ if (keep != "" && index($1, keep "/") == 1) next; keep = $1; print }'

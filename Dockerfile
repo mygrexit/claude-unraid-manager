@@ -36,9 +36,9 @@ COPY tmux.conf             /usr/local/share/claude-unraid-manager/tmux.conf
 COPY bashrc                /usr/local/share/claude-unraid-manager/bashrc
 RUN printf '\n' >> /etc/bash.bashrc && cat /usr/local/share/claude-unraid-manager/bashrc >> /etc/bash.bashrc
 COPY settings.json         /usr/local/share/claude-unraid-manager/settings.json
-COPY entrypoint.sh generate-claude-md.sh host boot-mode logs claude-guard claude-session claude-settings-merge /usr/local/bin/
+COPY entrypoint.sh generate-claude-md.sh host boot-mode docker-mode logs claude-guard claude-session claude-settings-merge /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/generate-claude-md.sh \
-             /usr/local/bin/host /usr/local/bin/boot-mode /usr/local/bin/logs /usr/local/bin/claude-guard \
+             /usr/local/bin/host /usr/local/bin/boot-mode /usr/local/bin/docker-mode /usr/local/bin/logs /usr/local/bin/claude-guard \
              /usr/local/bin/claude-session /usr/local/bin/claude-settings-merge
 
 # IS_SANDBOX is deliberately not set: it only serves to allow
@@ -53,7 +53,7 @@ WORKDIR /workspace
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
   CMD pgrep -x claude >/dev/null || exit 1
 
-LABEL org.opencontainers.image.source="https://github.com/mygrexit/claude-unraid-manager" \
+LABEL org.opencontainers.image.source="https://github.com/drxen00/claude-unraid-manager-plus" \
       org.opencontainers.image.description="Claude Code as an Unraid system manager" \
       org.opencontainers.image.licenses="MIT"
 
