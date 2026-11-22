@@ -65,9 +65,10 @@ for line in "${spec[@]}"; do
   case "$kind" in
     repo) repo=$a ;;
     network) args+=(--network "$a") ;;
-    # Word splitting is intended: ExtraParams is a flat list of flags.
-    # shellcheck disable=SC2206
-    extra) args+=($a) ;;
+    extra)
+      # Word splitting is intended: ExtraParams is a flat list of flags.
+      # shellcheck disable=SC2206
+      args+=($a) ;;
     env) args+=(-e "$a") ;;
     path)
       # The socket directory goes to a temporary directory instead of the
