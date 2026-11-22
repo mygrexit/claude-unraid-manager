@@ -19,11 +19,25 @@ versions and setups should behave the same, but have not been watched doing so.
 - The willingness to read what Claude proposes before you approve it. If you
   would not do the same work yourself on the command line, stop here.
 
-## 2. Install from Community Applications
+## 2. Install the two templates
 
-Web UI → **Apps** → search for *claude-unraid-manager* → **Install**. It is
-marked as beta. Unraid stores the template on the flash drive, as it does for
-every container; nothing else is written there.
+This fork is not in Community Applications (the Apps tab installs upstream,
+which mounts the raw Docker socket). Install its two templates by hand, in
+this order. In the Unraid terminal:
+
+```bash
+T=/boot/config/plugins/dockerMan/templates-user
+R=https://raw.githubusercontent.com/drxen00/claude-unraid-manager-plus/main
+curl -fsSL "$R/unraid-template-socket-proxy.xml" -o "$T/my-claude-docker-proxy.xml"
+curl -fsSL "$R/unraid-template.xml" -o "$T/my-claude-unraid-manager.xml"
+```
+
+Read both files before applying them. Then Docker tab → **Add Container** →
+*claude-docker-proxy* → **Apply**, and only then **Add Container** →
+*claude-unraid-manager* (next step). The proxy needs no changes: no network,
+no ports, and its allowlist variables are the security boundary (see the
+README, *Socket proxy*). Unraid stores both templates on the flash drive, as
+it does for every container; nothing else is written there.
 
 ## 3. Fill in the template
 
@@ -37,8 +51,9 @@ Settings worth a look; leave everything else at its default:
 | **Anthropic API Key** | Leave empty if you will log in with a claude.ai subscription (recommended). Fill it only for API-key billing; Remote Control is then disabled. |
 | **Unraid Boot Config** | Leave read-only for now. |
 
-Do **not** enable Privileged. It is not needed; host commands run through a
-helper container.
+Do **not** enable Privileged, and do not add `/var/run/docker.sock` as a
+path: Docker access goes through the proxy. Mounting the raw socket as well
+turns the proxy off as a boundary.
 
 Click **Apply**. Unraid pulls the image (about 500 MB) and starts the
 container. Wait until the Docker tab shows it as started, then click the
