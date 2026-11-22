@@ -46,10 +46,35 @@ if [ -d /root/.ssh ]; then
   chmod 600 /root/.ssh/config /root/.ssh/known_hosts 2>/dev/null || true
 fi
 
+# ── Docker access ────────────────────────────────────────────────────────────
+# The template mounts the socket proxy's directory, not the raw socket. The
+# proxy container may start after this one, so wait for its socket a while.
+DOCKER_MODE=$(docker-mode)
+case "${DOCKER_HOST:-}" in
+  unix://*)
+    if [ "$DOCKER_MODE" = none ]; then
+      echo "Waiting up to 60 s for the Docker proxy socket ${DOCKER_HOST#unix://} ..."
+      for _ in $(seq 60); do
+        sleep 1
+        DOCKER_MODE=$(docker-mode)
+        [ "$DOCKER_MODE" = none ] || break
+      done
+    fi ;;
+esac
+case "$DOCKER_MODE" in
+  proxy) echo "Docker: through the socket proxy (${DOCKER_HOST#unix://}). host commands are unavailable." ;;
+  full)
+    echo "Docker: raw socket mounted. This container is root-equivalent on the host."
+    [ -z "${DOCKER_HOST:-}" ] || echo "Warning: DOCKER_HOST is set, but with the raw socket mounted the proxy is no boundary."
+    ;;
+  *) echo "Warning: no Docker access. Is the claude-docker-proxy container running?" ;;
+esac
+
 # ── Make sure the host helper image is available ─────────────────────────────
 # `host` (and the scan below) start a tiny helper container; pull it now so
-# the first host command does not stall or fail on a cold cache.
-if [ -S /var/run/docker.sock ]; then
+# the first host command does not stall or fail on a cold cache. Only with the
+# raw socket: the proxy refuses pulls and container creation.
+if [ "$DOCKER_MODE" = full ]; then
   if ! docker image inspect "$HOST_HELPER_IMAGE" >/dev/null 2>&1; then
     timeout 60 docker pull -q "$HOST_HELPER_IMAGE" >/dev/null 2>&1 \
       || echo "Warning: could not pull $HOST_HELPER_IMAGE within 60 s — the first host command will pull it instead."
