@@ -158,11 +158,11 @@ else
 fi
 
 echo "proxy: nothing changed"
-[ "$(raw ps -aq | sort | tr '\n' ' ')" = "$before_containers" ] && pass "containers unchanged" || fail "containers changed"
-[ "$(raw volume ls -q | sort | tr '\n' ' ')" = "$before_volumes" ] && pass "volumes unchanged" || fail "volumes changed"
-[ "$(raw network ls -q | sort | tr '\n' ' ')" = "$before_networks" ] && pass "networks unchanged" || fail "networks changed"
-[ "$(raw images -q | sort -u | tr '\n' ' ')" = "$before_images" ] && pass "images unchanged" || fail "images changed"
-[ "$(raw inspect -f '{{.Name}}' "$TARGET")" = "/$TARGET" ] && pass "target not renamed" || fail "target renamed"
+if [ "$(raw ps -aq | sort | tr '\n' ' ')" = "$before_containers" ]; then pass "containers unchanged"; else fail "containers changed"; fi
+if [ "$(raw volume ls -q | sort | tr '\n' ' ')" = "$before_volumes" ]; then pass "volumes unchanged"; else fail "volumes changed"; fi
+if [ "$(raw network ls -q | sort | tr '\n' ' ')" = "$before_networks" ]; then pass "networks unchanged"; else fail "networks changed"; fi
+if [ "$(raw images -q | sort -u | tr '\n' ' ')" = "$before_images" ]; then pass "images unchanged"; else fail "images changed"; fi
+if [ "$(raw inspect -f '{{.Name}}' "$TARGET")" = "/$TARGET" ]; then pass "target not renamed"; else fail "target renamed"; fi
 
 # ── Manager image behind the proxy ───────────────────────────────────────────
 echo "manager image behind the proxy"
@@ -179,9 +179,9 @@ if [ "$(mgr docker-mode)" = proxy ]; then pass "docker-mode: proxy"; else fail "
 out=$(mgr 'host uptime; echo "status=$?"' 2>&1)
 case "$out" in *"status=69"*) pass "host refused with 69" ;; *) fail "host: $out" ;; esac
 if out=$(mgr 'generate-claude-md.sh >/dev/null && cat /workspace/CLAUDE.md' 2>&1); then
-  printf '%s' "$out" | grep -q 'through the socket proxy' && pass "CLAUDE.md: proxy section" || fail "CLAUDE.md: no proxy section"
-  printf '%s' "$out" | grep -q "$TARGET" && pass "CLAUDE.md: lists containers" || fail "CLAUDE.md: no containers"
-  printf '%s' "$out" | grep -q '/run/docker-proxy' && fail "CLAUDE.md lists the proxy mount as a path" || pass "CLAUDE.md: proxy mount not listed as a path"
+  if printf '%s' "$out" | grep -q 'through the socket proxy'; then pass "CLAUDE.md: proxy section"; else fail "CLAUDE.md: no proxy section"; fi
+  if printf '%s' "$out" | grep -q "$TARGET"; then pass "CLAUDE.md: lists containers"; else fail "CLAUDE.md: no containers"; fi
+  if printf '%s' "$out" | grep -q '/run/docker-proxy'; then fail "CLAUDE.md lists the proxy mount as a path"; else pass "CLAUDE.md: proxy mount not listed as a path"; fi
 else
   fail "generate-claude-md.sh in the manager: $out"
 fi
